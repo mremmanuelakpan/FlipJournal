@@ -1,0 +1,236 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --forest-green: #244637;
+    --forest-deep: #183327;
+    --antique-gold: #c5a66a;
+    --antique-gold-bright: #dfc187;
+    --antique-gold-dark: #9e7f45;
+    --warm-ivory: #f7f2e8;
+    --warm-ivory-light: #fbf9f4;
+    --warm-ivory-dark: #eee7d7;
+    --ink-charcoal: #292b27;
+    --muted-sage: #81977b;
+    --book-spine-width: 32px;
+  }
+
+  body {
+    background-color: #121413;
+    color: var(--ink-charcoal);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* Typography Utility Classes */
+.font-cinzel {
+  font-family: 'Cinzel', serif;
+}
+
+.font-cormorant {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+.font-lora {
+  font-family: 'Lora', Georgia, serif;
+}
+
+/* Gold Foil Stamping / Embossing Effects */
+.gold-foil-text {
+  background: linear-gradient(135deg, #dfc187 0%, #c5a66a 35%, #f3e5c8 50%, #b89758 70%, #9e7f45 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
+}
+
+.gold-foil-border {
+  border-image: linear-gradient(135deg, #dfc187, #c5a66a, #f3e5c8, #9e7f45) 1;
+}
+
+.gold-foil-accent {
+  background: linear-gradient(135deg, #dfc187 0%, #c5a66a 50%, #9e7f45 100%);
+}
+
+/* Book Cover Styling */
+.book-cover-surface {
+  background:
+    radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.05) 0%, transparent 70%),
+    linear-gradient(135deg, #1b362a 0%, #244637 40%, #1a3429 80%, #12241c 100%);
+  box-shadow:
+    inset 0 0 100px rgba(0, 0, 0, 0.35),
+    inset -4px 0 10px rgba(0, 0, 0, 0.4),
+    0 25px 50px -12px rgba(0, 0, 0, 0.7),
+    0 10px 20px -5px rgba(0, 0, 0, 0.5);
+}
+
+.theme-burgundy {
+  background:
+    radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.05) 0%, transparent 70%),
+    linear-gradient(135deg, #3d1419 0%, #4d1a20 40%, #361115 80%, #240a0e 100%);
+}
+
+.theme-navy {
+  background:
+    radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.05) 0%, transparent 70%),
+    linear-gradient(135deg, #112233 0%, #182e44 40%, #0d1a27 80%, #070e16 100%);
+}
+
+.theme-parchment {
+  background:
+    radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.08) 0%, transparent 70%),
+    linear-gradient(135deg, #3a3227 0%, #4a4033 40%, #322b22 80%, #221d17 100%);
+}
+
+/* Paper Surface & Edge Simulation */
+.paper-surface {
+  background-color: var(--warm-ivory);
+  background-image:
+    radial-gradient(#e4dcce 0.75px, transparent 0.75px),
+    linear-gradient(to right, rgba(0, 0, 0, 0.04) 0%, transparent 5%, transparent 95%, rgba(0, 0, 0, 0.04) 100%);
+  background-size: 20px 20px, 100% 100%;
+}
+
+.paper-surface-left {
+  background:
+    linear-gradient(to right, #fbf9f4 0%, #f7f2e8 92%, #e5ddcd 98%, #cfc4af 100%);
+  box-shadow:
+    inset -6px 0 15px -3px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.paper-surface-right {
+  background:
+    linear-gradient(to right, #cfc4af 0%, #e5ddcd 2%, #f7f2e8 8%, #fbf9f4 100%);
+  box-shadow:
+    inset 6px 0 15px -3px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.paper-surface-single {
+  background:
+    linear-gradient(180deg, #fbf9f4 0%, #f7f2e8 98%, #ece4d4 100%);
+  box-shadow:
+    inset 0 0 20px rgba(0, 0, 0, 0.04),
+    0 10px 25px -5px rgba(0, 0, 0, 0.3);
+}
+
+/* Deckled paper edges effect */
+.paper-stack-edges-bottom {
+  box-shadow:
+    0 1px 0 #e6decb,
+    0 2px 0 #d9cfba,
+    0 3px 0 #e6decb,
+    0 4px 0 #ccbfab,
+    0 5px 0 #e6decb,
+    0 6px 0 #bfb09a,
+    0 12px 24px -4px rgba(0, 0, 0, 0.45);
+}
+
+.paper-stack-edges-right {
+  box-shadow:
+    1px 0 0 #e6decb,
+    2px 0 0 #d9cfba,
+    3px 0 0 #e6decb,
+    4px 0 0 #ccbfab,
+    5px 0 0 #e6decb,
+    6px 0 0 #bfb09a,
+    14px 0 24px -4px rgba(0, 0, 0, 0.4);
+}
+
+.paper-stack-edges-left {
+  box-shadow:
+    -1px 0 0 #e6decb,
+    -2px 0 0 #d9cfba,
+    -3px 0 0 #e6decb,
+    -4px 0 0 #ccbfab,
+    -5px 0 0 #e6decb,
+    -6px 0 0 #bfb09a,
+    -14px 0 24px -4px rgba(0, 0, 0, 0.4);
+}
+
+/* Book Spine Visual */
+.book-spine-gradient {
+  background: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.5) 0%,
+    rgba(255, 255, 255, 0.08) 20%,
+    rgba(0, 0, 0, 0.2) 50%,
+    rgba(255, 255, 255, 0.06) 80%,
+    rgba(0, 0, 0, 0.45) 100%
+  );
+}
+
+/* Ribbon Bookmark */
+.ribbon-bookmark {
+  background: linear-gradient(to right, #7a1f29, #9e2a37, #661821);
+  box-shadow: 2px 4px 8px rgba(0, 0, 0, 0.35);
+  clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 50% calc(100% - 10px), 0% 100%);
+}
+
+/* 3D Perspective and Page Flip */
+.perspective-container {
+  perspective: 2200px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+/* Custom Scrollbar for ivory paper */
+.paper-scroll::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.paper-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.paper-scroll::-webkit-scrollbar-thumb {
+  background: #d4c8b2;
+  border-radius: 9999px;
+}
+
+.paper-scroll::-webkit-scrollbar-thumb:hover {
+  background: #b8a991;
+}
+
+/* Subtle Notebook Ruled Lines */
+.lined-paper {
+  background-image: repeating-linear-gradient(
+    transparent,
+    transparent 27px,
+    rgba(197, 166, 106, 0.15) 28px
+  );
+  line-height: 28px;
+}
+
+/* Text Size Preferences */
+.text-pref-small {
+  font-size: 0.925rem;
+}
+.text-pref-medium {
+  font-size: 1rem;
+}
+.text-pref-large {
+  font-size: 1.125rem;
+}
+
+/* Line Spacing Preferences */
+.spacing-pref-compact {
+  line-height: 1.45;
+}
+.spacing-pref-comfortable {
+  line-height: 1.75;
+}
+.spacing-pref-spacious {
+  line-height: 2.05;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

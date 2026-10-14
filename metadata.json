@@ -1,0 +1,6 @@
+{
+  "name": "The Journal",
+  "description": "A premium, interactive hardcover-style journaling web application with dependable journaling, goal tracking, habit tracking, and private data storage.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
