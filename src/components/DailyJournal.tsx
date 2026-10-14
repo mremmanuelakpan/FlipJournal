@@ -21,6 +21,8 @@ import {
   HabitCompletion,
   SaveStatus,
 } from '../types/journal';
+import { SpiralBinding } from './SpiralBinding';
+import { getTheme } from '../utils/theme';
 
 interface DailyJournalProps {
   entries: JournalEntry[];
@@ -77,6 +79,7 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
   onNavigateToCalendar,
 }) => {
   const todayStr = new Date().toISOString().split('T')[0];
+  const themeConfig = getTheme(profile.theme);
 
   // Editor local form state
   const [entryId, setEntryId] = useState<string | undefined>(currentEntry?.id);
@@ -87,48 +90,84 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
   const [sections, setSections] = useState<any>(currentEntry?.sections || {});
   const [revision, setRevision] = useState<number>(currentEntry?.revision || 1);
 
-  // Active entries on this date (to handle multiple entries per date as required)
+  // Active entries on this date
   const entriesOnCurrentDate = entries.filter((e) => e.journal_date === journalDate);
 
   // Conflict modal state
   const [conflictData, setConflictData] = useState<{ localBody: string; errorMsg: string } | null>(null);
 
-  // Autosave timer ref
-  const autosaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isInitialMount = useRef(true);
-  const isDirtyRef = useRef(false);
+  // Keep refs for latest values so autosave never reads stale closures
+  const stateRef = useRef({
+    entryId,
+    journalDate,
+    title,
+    body,
+    mood,
+    sections,
+    revision,
+  });
 
-  // Sync state when currentEntry changes from props
   useEffect(() => {
-    if (currentEntry) {
-      setEntryId(currentEntry.id);
-      setJournalDate(currentEntry.journal_date);
-      setTitle(currentEntry.title || '');
-      setBody(currentEntry.body || '');
-      setMood(currentEntry.mood || null);
-      setSections(currentEntry.sections || {});
-      setRevision(currentEntry.revision || 1);
-      isDirtyRef.current = false;
-    } else {
-      // If no entry, create blank state for today
-      setEntryId(undefined);
-      setJournalDate(todayStr);
-      setTitle('');
-      setBody('');
-      setMood(null);
-      setSections({});
-      setRevision(1);
-      isDirtyRef.current = false;
-    }
-  }, [currentEntry?.id, currentEntry?.updated_at]);
+    stateRef.current = { entryId, journalDate, title, body, mood, sections, revision };
+  }, [entryId, journalDate, title, body, mood, sections, revision]);
 
-  // Autosave executor
+  // Track the entry ID that is currently loaded in the editor
+  const loadedEntryIdRef = useRef<string | undefined>(currentEntry?.id);
+  const isDirtyRef = useRef(false);
+  const autosaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ONLY sync from props when user explicitly switches to a DIFFERENT entry or creates a new entry
+  useEffect(() => {
+    // If the entry ID changed (e.g., user clicked an entry in list/calendar)
+    if (currentEntry?.id !== loadedEntryIdRef.current) {
+      // If currentEntry prop just caught up with the entry that was just saved, do NOT wipe or reset!
+      if (currentEntry && currentEntry.id === entryId) {
+        loadedEntryIdRef.current = currentEntry.id;
+        return;
+      }
+      // If user is actively typing an unsaved draft and currentEntry is null, do NOT wipe!
+      if (!currentEntry && isDirtyRef.current) {
+        return;
+      }
+
+      loadedEntryIdRef.current = currentEntry?.id;
+      if (currentEntry) {
+        setEntryId(currentEntry.id);
+        setJournalDate(currentEntry.journal_date);
+        setTitle(currentEntry.title || '');
+        setBody(currentEntry.body || '');
+        setMood(currentEntry.mood || null);
+        setSections(currentEntry.sections || {});
+        setRevision(currentEntry.revision || 1);
+      } else {
+        setEntryId(undefined);
+        setJournalDate(todayStr);
+        setTitle('');
+        setBody('');
+        setMood(null);
+        setSections({});
+        setRevision(1);
+      }
+      isDirtyRef.current = false;
+      setSaveStatus('saved');
+    }
+  }, [currentEntry, entryId, todayStr, setSaveStatus]);
+
+  // Non-intrusive Autosave executor
   const performSave = useCallback(
     async (manual = false) => {
       if (!isDirtyRef.current && !manual) return;
 
-      // Don't save completely empty new entry
-      if (!entryId && !title.trim() && !body.trim() && !mood && Object.keys(sections).length === 0) {
+      const current = stateRef.current;
+
+      // Don't save completely blank draft
+      if (
+        !current.entryId &&
+        !current.title.trim() &&
+        !current.body.trim() &&
+        !current.mood &&
+        Object.keys(current.sections || {}).length === 0
+      ) {
         return;
       }
 
@@ -136,39 +175,44 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
 
       try {
         const res = await onSaveEntry({
-          id: entryId,
-          journal_date: journalDate,
-          title: title.trim() || null,
-          body,
-          mood,
-          sections,
-          expected_revision: entryId ? revision : undefined,
+          id: current.entryId,
+          journal_date: current.journalDate,
+          title: current.title.trim() || null,
+          body: current.body,
+          mood: current.mood,
+          sections: current.sections,
+          expected_revision: current.entryId ? current.revision : undefined,
         });
 
         if (res.success && res.entry) {
+          // Update revision & id without re-rendering or touching text input
           setEntryId(res.entry.id);
           setRevision(res.entry.revision);
-          setSaveStatus('saved');
+          loadedEntryIdRef.current = res.entry.id;
+          stateRef.current.entryId = res.entry.id;
+          stateRef.current.revision = res.entry.revision;
           isDirtyRef.current = false;
+          setSaveStatus('saved');
+          onSelectEntry(res.entry);
         } else if (res.conflict) {
           setSaveStatus('conflict');
           setConflictData({
-            localBody: body,
-            errorMsg: res.error || 'Revision mismatch. Stored entry was updated elsewhere.',
+            localBody: current.body,
+            errorMsg: res.error || 'Revision mismatch. Stored entry was updated in another session.',
           });
         } else {
           setSaveStatus('error');
         }
       } catch (err) {
-        console.error('Autosave failed:', err);
+        console.error('Autosave error:', err);
         setSaveStatus('error');
       }
     },
-    [entryId, journalDate, title, body, mood, sections, revision, onSaveEntry, setSaveStatus]
+    [onSaveEntry, onSelectEntry, setSaveStatus]
   );
 
-  // Debounced trigger on keystrokes/changes (750ms)
-  const markDirtyAndScheduleSave = useCallback(() => {
+  // Debounce autosave: 1500ms after user pauses typing (completely smooth, no typing stutter)
+  const scheduleAutosave = useCallback(() => {
     isDirtyRef.current = true;
     setSaveStatus('unsaved');
 
@@ -176,11 +220,11 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
       clearTimeout(autosaveTimeoutRef.current);
     }
     autosaveTimeoutRef.current = setTimeout(() => {
-      performSave();
-    }, 850);
+      performSave(false);
+    }, 1500);
   }, [performSave, setSaveStatus]);
 
-  // Clean up timer on unmount
+  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (autosaveTimeoutRef.current) {
@@ -203,10 +247,10 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
 
   // Create another new entry on current date
   const handleCreateNewOnDate = () => {
-    // If dirty, save first
     if (isDirtyRef.current) {
       performSave(true);
     }
+    loadedEntryIdRef.current = undefined;
     setEntryId(undefined);
     setTitle('');
     setBody('');
@@ -229,7 +273,7 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
     }
   };
 
-  // Previous & Next navigation in chronological order
+  // Chronological navigation
   const currentIndex = entries.findIndex((e) => e.id === entryId);
   const hasOlder = currentIndex >= 0 && currentIndex < entries.length - 1;
   const hasNewer = currentIndex > 0;
@@ -257,24 +301,24 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
     ];
     const updated = [...currentPrompts];
     updated[index] = { ...updated[index], response: text };
-    setSections({ ...sections, prompts: updated });
-    markDirtyAndScheduleSave();
+    setSections((prev: any) => ({ ...prev, prompts: updated }));
+    scheduleAutosave();
   };
 
   const handlePriorityChange = (index: number, text: string) => {
     const prios = sections.priorities || ['', '', ''];
     const updated = [...prios];
     updated[index] = text;
-    setSections({ ...sections, priorities: updated });
-    markDirtyAndScheduleSave();
+    setSections((prev: any) => ({ ...prev, priorities: updated }));
+    scheduleAutosave();
   };
 
   const handleHighlightChange = (index: number, text: string) => {
     const hl = sections.highlights || ['', '', ''];
     const updated = [...hl];
     updated[index] = text;
-    setSections({ ...sections, highlights: updated });
-    markDirtyAndScheduleSave();
+    setSections((prev: any) => ({ ...prev, highlights: updated }));
+    scheduleAutosave();
   };
 
   // Format date readable
@@ -289,15 +333,15 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
   const charCount = body.length;
 
   return (
-    <div className="w-full max-w-7xl mx-auto py-4 sm:py-6 px-2 sm:px-4">
+    <div className="w-full max-w-7xl mx-auto py-3 sm:py-5 px-2 sm:px-4">
       {/* Top Ledger Bar: Navigation & Date Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4 px-2 select-none">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3 px-2 select-none">
         <div className="flex items-center gap-2">
           <button
             onClick={handleNavigateOlder}
             disabled={!hasOlder}
-            className={`p-1.5 rounded border border-amber-900/20 bg-stone-800/40 text-stone-300 transition-colors cursor-pointer ${
-              !hasOlder ? 'opacity-30 cursor-not-allowed' : 'hover:bg-stone-700/60 hover:text-white'
+            className={`p-1.5 rounded border border-amber-900/20 bg-stone-900/60 text-stone-300 transition-colors cursor-pointer ${
+              !hasOlder ? 'opacity-30 cursor-not-allowed' : 'hover:bg-stone-800 hover:text-white'
             }`}
             title="Older Entry"
           >
@@ -306,8 +350,8 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
           <button
             onClick={handleNavigateNewer}
             disabled={!hasNewer}
-            className={`p-1.5 rounded border border-amber-900/20 bg-stone-800/40 text-stone-300 transition-colors cursor-pointer ${
-              !hasNewer ? 'opacity-30 cursor-not-allowed' : 'hover:bg-stone-700/60 hover:text-white'
+            className={`p-1.5 rounded border border-amber-900/20 bg-stone-900/60 text-stone-300 transition-colors cursor-pointer ${
+              !hasNewer ? 'opacity-30 cursor-not-allowed' : 'hover:bg-stone-800 hover:text-white'
             }`}
             title="Newer Entry"
           >
@@ -322,11 +366,11 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
                 const newD = e.target.value;
                 if (newD) {
                   setJournalDate(newD);
-                  // Check if entry exists on this date
                   const match = entries.find((en) => en.journal_date === newD);
                   if (match) {
                     onSelectEntry(match);
                   } else {
+                    loadedEntryIdRef.current = undefined;
                     setEntryId(undefined);
                     setTitle('');
                     setBody('');
@@ -335,7 +379,7 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
                     setRevision(1);
                     onSelectEntry(null);
                   }
-                  markDirtyAndScheduleSave();
+                  scheduleAutosave();
                 }
               }}
               className="bg-stone-900/80 border border-stone-700 text-stone-200 text-xs px-2.5 py-1.5 rounded focus:outline-none focus:border-amber-500 cursor-pointer"
@@ -353,8 +397,8 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
         {/* Multi-entry indicator & Actions */}
         <div className="flex items-center gap-2">
           {entriesOnCurrentDate.length > 1 && (
-            <div className="flex items-center gap-1 text-xs text-stone-400 mr-2">
-              <span>Entries on this date:</span>
+            <div className="flex items-center gap-1 text-xs text-stone-300 mr-2">
+              <span className="hidden sm:inline">Entries:</span>
               <div className="flex gap-1">
                 {entriesOnCurrentDate.map((en, idx) => (
                   <button
@@ -375,7 +419,7 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
 
           <button
             onClick={handleCreateNewOnDate}
-            className="flex items-center gap-1.5 text-xs bg-stone-800 hover:bg-stone-700 text-[#dfc187] px-3 py-1.5 rounded border border-[#c5a66a]/30 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 text-xs bg-stone-900/80 hover:bg-stone-800 text-[#dfc187] px-3 py-1.5 rounded border border-[#c5a66a]/40 transition-colors cursor-pointer"
             title="Create another entry on this date"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -394,269 +438,276 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
         </div>
       </div>
 
-      {/* Realistic Book Open Spread (2-Page Desktop, 1-Page Mobile) */}
-      <div className="relative rounded-lg shadow-2xl overflow-hidden border border-[#c5a66a]/40 bg-[#244637] p-2 sm:p-4">
-        {/* Layered book spine center shadow visible on desktop */}
-        <div className="hidden lg:block absolute left-1/2 top-0 bottom-0 w-8 -translate-x-1/2 z-20 pointer-events-none bg-gradient-to-r from-black/20 via-black/40 to-black/20 shadow-inner" />
+      {/* Realistic Hardcover Book Spread with Uniform Overhang Gap */}
+      <div
+        className="relative rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.85)] border-2 border-[#c5a66a]/60 p-3 sm:p-4 lg:p-5 transition-colors duration-500"
+        style={themeConfig.bookCoverStyle}
+      >
+        {/* Embossed inner hardcover border accent */}
+        <div className="absolute inset-1.5 sm:inset-2 rounded-xl border border-[#c5a66a]/30 pointer-events-none" />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-0 bg-transparent min-h-[680px]">
-          {/* ========================================================= */}
-          {/* LEFT PAGE: Reflection, Mood, Priorities & Habit Check-ins */}
-          {/* ========================================================= */}
-          <div className="paper-surface paper-surface-left p-6 sm:p-8 lg:p-10 rounded-l-md border-r border-[#e0d6c1] flex flex-col justify-between text-stone-800 paper-scroll overflow-y-auto max-h-[82vh]">
-            <div>
-              {/* Left Page Top Header: Date and Page marker */}
-              <div className="border-b border-stone-300/80 pb-4 mb-6">
-                <span className="text-[11px] font-cinzel tracking-[0.25em] uppercase text-stone-500 block mb-1">
-                  Daily Record · Page Left
-                </span>
-                <h2 className="text-2xl sm:text-3xl font-cormorant font-semibold text-stone-900 tracking-wide">
-                  {formattedDate}
-                </h2>
-              </div>
+        {/* Interior Paper Block with Note Depth (stacked pages thickness) directly on the notes */}
+        <div className="relative rounded-lg overflow-hidden bg-[#f7f2e8] border border-[#d6c7ab] shadow-[0_2px_4px_rgba(0,0,0,0.08),2px_2px_0px_#ede4d4,4px_4px_0px_#dfd2bc,0_16px_36px_-6px_rgba(0,0,0,0.5)]">
+          {/* Metallic Spiral Binding between Pages */}
+          <SpiralBinding ringCount={22} />
 
-              {/* Section 1: Mood Check-in */}
-              <div className="mb-6">
-                <div className="flex items-center gap-1.5 mb-2.5">
-                  <Smile className="w-4 h-4 text-stone-600" />
-                  <span className="text-xs uppercase tracking-wider font-cinzel text-stone-600">
-                    State of Mind
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 min-h-[660px]">
+            {/* ========================================================= */}
+            {/* LEFT PAGE: Reflection, Mood, Priorities & Habit Check-ins */}
+            {/* ========================================================= */}
+            <div className="paper-surface paper-surface-left p-6 sm:p-8 lg:p-9 lg:pr-12 flex flex-col justify-between text-stone-800 border-b lg:border-b-0 lg:border-r border-[#d9ceb9]">
+              <div>
+                {/* Date Header */}
+                <div className="border-b border-stone-300/80 pb-3 mb-5">
+                  <span className="text-[11px] font-cinzel tracking-[0.25em] uppercase text-stone-500 block mb-1">
+                    Flip Journal · Left Page
                   </span>
+                  <h2 className="text-2xl sm:text-3xl font-cormorant font-semibold text-stone-900 tracking-wide">
+                    {formattedDate}
+                  </h2>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {MOODS.map((m) => {
-                    const isSelected = mood === m.id;
+
+                {/* Section 1: State of Mind Mood Selector */}
+                <div className="mb-5">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Smile className="w-4 h-4 text-stone-600" />
+                    <span className="text-xs uppercase tracking-wider font-cinzel text-stone-600">
+                      State of Mind
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {MOODS.map((m) => {
+                      const isSelected = mood === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => {
+                            setMood(isSelected ? null : m.id);
+                            scheduleAutosave();
+                          }}
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#244637] text-amber-100 font-medium shadow-sm'
+                              : 'bg-stone-200/70 hover:bg-stone-300 text-stone-700'
+                          }`}
+                        >
+                          <span>{m.symbol}</span>
+                          <span>{m.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Section 2: Reflection Prompts */}
+                <div className="mb-5 space-y-3.5">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Sparkles className="w-4 h-4 text-stone-600" />
+                    <span className="text-xs uppercase tracking-wider font-cinzel text-stone-600">
+                      Evening Reflection
+                    </span>
+                  </div>
+
+                  {DEFAULT_PROMPTS.map((promptText, idx) => {
+                    const responses = sections.prompts || [];
+                    const val = responses[idx]?.response || '';
                     return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => {
-                          setMood(isSelected ? null : m.id);
-                          markDirtyAndScheduleSave();
-                        }}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-[#244637] text-amber-100 font-medium shadow-sm'
-                            : 'bg-stone-200/70 hover:bg-stone-300 text-stone-700'
-                        }`}
-                      >
-                        <span>{m.symbol}</span>
-                        <span>{m.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Section 2: Reflection Prompts */}
-              <div className="mb-6 space-y-4">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Sparkles className="w-4 h-4 text-stone-600" />
-                  <span className="text-xs uppercase tracking-wider font-cinzel text-stone-600">
-                    Evening Reflection
-                  </span>
-                </div>
-
-                {DEFAULT_PROMPTS.map((promptText, idx) => {
-                  const responses = sections.prompts || [];
-                  const val = responses[idx]?.response || '';
-                  return (
-                    <div key={idx} className="space-y-1">
-                      <label className="block text-xs font-serif italic text-stone-700 leading-snug">
-                        {promptText}
-                      </label>
-                      <input
-                        type="text"
-                        value={val}
-                        onChange={(e) => handlePromptChange(idx, e.target.value)}
-                        placeholder="Write a thought…"
-                        className="w-full text-xs font-serif text-stone-800 bg-transparent border-b border-stone-300 focus:border-[#244637] pb-1 focus:outline-none placeholder:text-stone-400 placeholder:italic transition-colors"
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Section 3: Today's 3 Intentions / Priorities */}
-              <div className="mb-6">
-                <div className="flex items-center gap-1.5 mb-2.5">
-                  <ListTodo className="w-4 h-4 text-stone-600" />
-                  <span className="text-xs uppercase tracking-wider font-cinzel text-stone-600">
-                    Primary Intentions
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {[0, 1, 2].map((idx) => {
-                    const prios = sections.priorities || ['', '', ''];
-                    return (
-                      <div key={idx} className="flex items-center gap-2">
-                        <span className="text-xs font-serif text-stone-400 w-3">{idx + 1}.</span>
+                      <div key={idx} className="space-y-1">
+                        <label className="block text-xs font-serif italic text-stone-700 leading-snug">
+                          {promptText}
+                        </label>
                         <input
                           type="text"
-                          value={prios[idx] || ''}
-                          onChange={(e) => handlePriorityChange(idx, e.target.value)}
-                          placeholder={`Intention ${idx + 1}…`}
-                          className="flex-1 text-xs font-serif text-stone-800 bg-transparent border-b border-stone-300 focus:border-[#244637] pb-1 focus:outline-none placeholder:text-stone-400 placeholder:italic transition-colors"
+                          value={val}
+                          onChange={(e) => handlePromptChange(idx, e.target.value)}
+                          placeholder="Write a thought…"
+                          className="w-full text-xs font-serif text-stone-800 bg-transparent border-b border-stone-300 focus:border-stone-700 pb-1 focus:outline-none placeholder:text-stone-400 placeholder:italic transition-colors"
                         />
                       </div>
                     );
                   })}
                 </div>
-              </div>
 
-              {/* Section 4: Habits due today */}
-              {habits.length > 0 && (
-                <div className="mb-6">
-                  <div className="flex items-center gap-1.5 mb-2.5">
-                    <CheckSquare className="w-4 h-4 text-stone-600" />
+                {/* Section 3: Today's Priorities */}
+                <div className="mb-5">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <ListTodo className="w-4 h-4 text-stone-600" />
                     <span className="text-xs uppercase tracking-wider font-cinzel text-stone-600">
-                      Daily Habits
+                      Primary Intentions
                     </span>
                   </div>
                   <div className="space-y-1.5">
-                    {habits
-                      .filter((h) => h.status === 'active')
-                      .map((habit) => {
-                        const isDone = habitCompletions.some(
-                          (c) => c.habit_id === habit.id && c.completed_on === journalDate
-                        );
-                        return (
-                          <label
-                            key={habit.id}
-                            className="flex items-center gap-2 text-xs font-serif text-stone-800 cursor-pointer group"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isDone}
-                              onChange={() => onToggleHabit(habit.id, journalDate)}
-                              className="rounded border-stone-400 text-[#244637] focus:ring-0 cursor-pointer"
-                            />
-                            <span className={isDone ? 'line-through text-stone-400' : 'group-hover:text-black'}>
-                              {habit.name}
-                            </span>
-                          </label>
-                        );
-                      })}
+                    {[0, 1, 2].map((idx) => {
+                      const prios = sections.priorities || ['', '', ''];
+                      return (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="text-xs font-serif text-stone-400 w-3">{idx + 1}.</span>
+                          <input
+                            type="text"
+                            value={prios[idx] || ''}
+                            onChange={(e) => handlePriorityChange(idx, e.target.value)}
+                            placeholder={`Intention ${idx + 1}…`}
+                            className="flex-1 text-xs font-serif text-stone-800 bg-transparent border-b border-stone-300 focus:border-stone-700 pb-1 focus:outline-none placeholder:text-stone-400 placeholder:italic transition-colors"
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              )}
-            </div>
 
-            {/* Left page footer */}
-            <div className="pt-4 border-t border-stone-300/60 text-[11px] font-cinzel text-stone-400 flex items-center justify-between">
-              <span>Section: Journal Intention</span>
-              <span>Ref: {journalDate}</span>
-            </div>
-          </div>
-
-          {/* ========================================================= */}
-          {/* RIGHT PAGE: Main Writing Canvas, Title & Autosave Area    */}
-          {/* ========================================================= */}
-          <div className="paper-surface paper-surface-right p-6 sm:p-8 lg:p-10 rounded-r-md flex flex-col justify-between text-stone-800 paper-scroll overflow-y-auto max-h-[82vh]">
-            <div className="flex-1 flex flex-col">
-              {/* Right Page Header */}
-              <div className="border-b border-stone-300/80 pb-3 mb-4 flex items-center justify-between">
-                <span className="text-[11px] font-cinzel tracking-[0.25em] uppercase text-stone-500">
-                  Journal Entry · Page Right
-                </span>
-                <span className="text-xs font-mono text-stone-400">
-                  {wordCount} words · {charCount} chars
-                </span>
+                {/* Section 4: Habits due today */}
+                {habits.length > 0 && (
+                  <div className="mb-4">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <CheckSquare className="w-4 h-4 text-stone-600" />
+                      <span className="text-xs uppercase tracking-wider font-cinzel text-stone-600">
+                        Daily Habits
+                      </span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {habits
+                        .filter((h) => h.status === 'active')
+                        .map((habit) => {
+                          const isDone = habitCompletions.some(
+                            (c) => c.habit_id === habit.id && c.completed_on === journalDate
+                          );
+                          return (
+                            <label
+                              key={habit.id}
+                              className="flex items-center gap-2 text-xs font-serif text-stone-800 cursor-pointer group"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isDone}
+                                onChange={() => onToggleHabit(habit.id, journalDate)}
+                                className="rounded border-stone-400 text-stone-800 focus:ring-0 cursor-pointer"
+                              />
+                              <span className={isDone ? 'line-through text-stone-400' : 'group-hover:text-black'}>
+                                {habit.name}
+                              </span>
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Entry Title Input */}
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  markDirtyAndScheduleSave();
-                }}
-                placeholder="Give this entry a title…"
-                className="w-full text-xl sm:text-2xl font-cormorant font-semibold text-stone-900 bg-transparent border-b border-stone-300/60 focus:border-[#244637] pb-2 focus:outline-none placeholder:text-stone-400 placeholder:italic mb-4 transition-colors"
-              />
-
-              {/* Main Body Free-Writing Canvas with realistic lined texture */}
-              <div className="flex-1 relative min-h-[360px]">
-                <textarea
-                  value={body}
-                  onChange={(e) => {
-                    setBody(e.target.value);
-                    markDirtyAndScheduleSave();
-                  }}
-                  placeholder="Begin writing your thoughts, feelings, or record of the day…"
-                  className={`w-full h-full min-h-[380px] bg-transparent resize-none focus:outline-none font-lora text-stone-800 placeholder:text-stone-400/80 placeholder:italic lined-paper leading-7 text-pref-${profile.text_size} spacing-pref-${profile.line_spacing}`}
-                  style={{
-                    border: 'none',
-                  }}
-                />
+              {/* Left page footer */}
+              <div className="pt-3 mt-4 border-t border-stone-300/60 text-[11px] font-cinzel text-stone-400 flex items-center justify-between">
+                <span>Section: Intentions & Prompts</span>
+                <span>Ref: {journalDate}</span>
               </div>
+            </div>
 
-              {/* Highlights & Gratitude subsection */}
-              <div className="mt-4 pt-4 border-t border-stone-300/60">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <FileText className="w-3.5 h-3.5 text-stone-500" />
-                  <span className="text-[11px] uppercase tracking-wider font-cinzel text-stone-500">
-                    Highlights & Gratitude
+            {/* ========================================================= */}
+            {/* RIGHT PAGE: Main Writing Canvas, Title & Autosave Area    */}
+            {/* ========================================================= */}
+            <div className="paper-surface paper-surface-right p-6 sm:p-8 lg:p-9 lg:pl-12 flex flex-col justify-between text-stone-800">
+              <div className="flex-1 flex flex-col">
+                {/* Right Page Header */}
+                <div className="border-b border-stone-300/80 pb-3 mb-4 flex items-center justify-between">
+                  <span className="text-[11px] font-cinzel tracking-[0.25em] uppercase text-stone-500">
+                    Flip Journal · Right Page
+                  </span>
+                  <span className="text-xs font-mono text-stone-400">
+                    {wordCount} words · {charCount} chars
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {[0, 1, 2].map((idx) => {
-                    const hl = sections.highlights || ['', '', ''];
-                    return (
-                      <input
-                        key={idx}
-                        type="text"
-                        value={hl[idx] || ''}
-                        onChange={(e) => handleHighlightChange(idx, e.target.value)}
-                        placeholder={`Gratitude #${idx + 1}`}
-                        className="text-xs font-serif bg-stone-200/50 rounded px-2.5 py-1.5 text-stone-800 focus:bg-stone-200 focus:outline-none placeholder:text-stone-400 placeholder:italic transition-colors"
-                      />
-                    );
-                  })}
+
+                {/* Entry Title Input */}
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    scheduleAutosave();
+                  }}
+                  placeholder="Give this entry a title…"
+                  className="w-full text-xl sm:text-2xl font-cormorant font-semibold text-stone-900 bg-transparent border-b border-stone-300/60 focus:border-stone-700 pb-2 focus:outline-none placeholder:text-stone-400 placeholder:italic mb-4 transition-colors"
+                />
+
+                {/* Main Body Free-Writing Canvas - Absolutely smooth, no interference */}
+                <div className="flex-1 relative min-h-[340px]">
+                  <textarea
+                    value={body}
+                    onChange={(e) => {
+                      setBody(e.target.value);
+                      scheduleAutosave();
+                    }}
+                    placeholder="Begin writing your thoughts, reflections, or notes for the day…"
+                    className={`w-full h-full min-h-[340px] bg-transparent resize-none focus:outline-none font-lora text-stone-800 placeholder:text-stone-400/80 placeholder:italic lined-paper leading-7 text-pref-${profile.text_size} spacing-pref-${profile.line_spacing}`}
+                    style={{ border: 'none' }}
+                  />
+                </div>
+
+                {/* Highlights & Gratitude subsection */}
+                <div className="mt-3 pt-3 border-t border-stone-300/60">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <FileText className="w-3.5 h-3.5 text-stone-500" />
+                    <span className="text-[11px] uppercase tracking-wider font-cinzel text-stone-500">
+                      Highlights & Gratitude
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {[0, 1, 2].map((idx) => {
+                      const hl = sections.highlights || ['', '', ''];
+                      return (
+                        <input
+                          key={idx}
+                          type="text"
+                          value={hl[idx] || ''}
+                          onChange={(e) => handleHighlightChange(idx, e.target.value)}
+                          placeholder={`Gratitude #${idx + 1}`}
+                          className="text-xs font-serif bg-stone-200/50 rounded px-2.5 py-1 text-stone-800 focus:bg-stone-200 focus:outline-none placeholder:text-stone-400 placeholder:italic transition-colors"
+                        />
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Right Page Bottom Status Strip */}
-            <div className="pt-4 mt-6 border-t border-stone-300/60 flex items-center justify-between text-xs text-stone-500">
-              <div className="flex items-center gap-2">
-                {saveStatus === 'saved' && (
-                  <span className="text-emerald-700/80 font-medium">✓ Authoritative save confirmed</span>
-                )}
-                {saveStatus === 'saving' && (
-                  <span className="text-amber-700 font-medium animate-pulse">Saving changes…</span>
-                )}
-                {saveStatus === 'unsaved' && (
-                  <span className="text-stone-500">Unsaved draft in memory</span>
-                )}
-                {saveStatus === 'error' && (
+              {/* Right Page Bottom Status Strip */}
+              <div className="pt-3 mt-4 border-t border-stone-300/60 flex items-center justify-between text-xs text-stone-500">
+                <div className="flex items-center gap-2">
+                  {saveStatus === 'saved' && (
+                    <span className="text-emerald-700/90 font-medium">✓ Saved</span>
+                  )}
+                  {saveStatus === 'saving' && (
+                    <span className="text-amber-700 font-medium animate-pulse">Saving in background…</span>
+                  )}
+                  {saveStatus === 'unsaved' && (
+                    <span className="text-stone-500">Draft edited</span>
+                  )}
+                  {saveStatus === 'error' && (
+                    <button
+                      onClick={() => performSave(true)}
+                      className="text-rose-700 font-medium underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      Retry save
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="text-[11px] font-mono text-stone-400">Rev. {revision}</span>
                   <button
+                    type="button"
                     onClick={() => performSave(true)}
-                    className="text-rose-700 font-medium underline flex items-center gap-1 cursor-pointer"
+                    className="px-3 py-1 bg-stone-800 hover:bg-stone-900 text-amber-100 rounded text-xs font-cinzel font-medium transition-colors cursor-pointer"
                   >
-                    <RotateCcw className="w-3 h-3" />
-                    Save failed. Click to retry.
+                    Save
                   </button>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3">
-                <span className="text-[11px] font-mono text-stone-400">Rev. {revision}</span>
-                <button
-                  type="button"
-                  onClick={() => performSave(true)}
-                  className="px-3 py-1 bg-[#244637] hover:bg-[#1b362a] text-amber-100 rounded text-xs font-cinzel font-medium transition-colors cursor-pointer"
-                >
-                  Save Now
-                </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Revision Concurrency Conflict Modal (PRD Section 12.2) */}
+      {/* Revision Concurrency Conflict Modal */}
       {conflictData && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-stone-900 border border-amber-600/60 rounded-xl max-w-lg w-full p-6 text-stone-200 shadow-2xl">
@@ -665,7 +716,7 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
               <h3 className="text-lg font-cinzel font-bold">Concurrency Conflict Detected</h3>
             </div>
             <p className="text-xs text-stone-300 leading-relaxed mb-4">
-              Another session or device modified this journal entry while you were typing. To prevent silent data loss, your changes are preserved below.
+              Another session modified this entry while you were typing. Your local text is preserved below so you never lose your words.
             </p>
             <div className="bg-black/40 border border-stone-800 rounded p-3 mb-4 max-h-36 overflow-y-auto text-xs font-mono text-amber-100/90">
               {conflictData.localBody}
@@ -680,7 +731,6 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
               <button
                 onClick={async () => {
                   setConflictData(null);
-                  // Force save with latest revision
                   setRevision((prev) => prev + 1);
                   performSave(true);
                 }}

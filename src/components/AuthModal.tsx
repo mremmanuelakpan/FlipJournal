@@ -2,13 +2,17 @@ import React, { useState } from 'react';
 import { X, Lock, Mail, User, ShieldCheck, ArrowRight, Sparkles } from 'lucide-react';
 import { signUpUser, signInUser, resetPasswordForEmail, AuthUser } from '../services/storage';
 
+import { Theme } from '../types/journal';
+import { getTheme } from '../utils/theme';
+
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAuthSuccess: (user: AuthUser) => void;
+  theme?: Theme;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, theme = 'forest' }) => {
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,6 +20,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const themeConfig = getTheme(theme);
 
   if (!isOpen) return null;
 
@@ -77,26 +83,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   };
 
   return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-      <div className="bg-[#1b362a] border border-[#c5a66a]/60 rounded-xl max-w-md w-full p-6 sm:p-8 text-stone-200 shadow-2xl relative">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+      <div
+        className="border-2 border-[#c5a66a]/70 rounded-2xl max-w-md w-full p-6 sm:p-8 text-stone-200 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.95)] relative transition-all duration-500 overflow-hidden"
+        style={themeConfig.bookCoverStyle}
+      >
+        {/* Embossed inner gold frame accent matching book cover */}
+        <div className="absolute inset-1.5 sm:inset-2 rounded-xl border border-[#c5a66a]/30 pointer-events-none" />
+
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-stone-400 hover:text-stone-200 transition-colors p-1"
+          className="absolute top-4 right-4 text-[#dfc187]/80 hover:text-white transition-colors p-1.5 z-10 cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-[#c5a66a]/40 bg-black/30 mb-2">
+        <div className="text-center mb-6 relative z-10">
+          <div className="inline-flex items-center justify-center w-11 h-11 rounded-full border border-[#c5a66a]/50 bg-black/30 mb-2">
             <Sparkles className="w-5 h-5 text-[#dfc187]" />
           </div>
           <h2 className="text-xl sm:text-2xl font-cinzel font-bold text-amber-100 uppercase tracking-wider">
-            {mode === 'signin' && 'Sign in to The Journal'}
-            {mode === 'signup' && 'Create Your Ledger'}
+            {mode === 'signin' && 'Sign in to Flip Journal'}
+            {mode === 'signup' && 'Create Your Flip Journal'}
             {mode === 'forgot' && 'Account Recovery'}
           </h2>
-          <p className="font-cormorant italic text-sm text-[#f3e5c8]/80 mt-1">
-            Private, secure, and Row Level Security protected
+          <p className="font-cormorant italic text-sm text-[#f3e5c8]/90 mt-1">
+            by Emmanuel Akpan · Private, secure & RLS protected
           </p>
         </div>
 

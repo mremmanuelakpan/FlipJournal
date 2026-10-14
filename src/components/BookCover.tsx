@@ -1,6 +1,7 @@
 import React from 'react';
 import { BookOpen, Sparkles, Key, ShieldCheck } from 'lucide-react';
 import { Theme } from '../types/journal';
+import { getTheme } from '../utils/theme';
 
 interface BookCoverProps {
   theme: Theme;
@@ -17,37 +18,27 @@ export const BookCover: React.FC<BookCoverProps> = ({
   userDisplayName,
   onOpenAuth,
 }) => {
-  const getThemeClass = (t: Theme) => {
-    switch (t) {
-      case 'burgundy':
-        return 'theme-burgundy';
-      case 'navy':
-        return 'theme-navy';
-      case 'parchment':
-        return 'theme-parchment';
-      default:
-        return 'book-cover-surface';
-    }
-  };
+  const themeConfig = getTheme(theme);
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center p-4 sm:p-6 lg:p-10 perspective-container">
       {/* 3D Realistic Hardcover */}
       <div
-        className={`relative w-full max-w-[460px] sm:max-w-[520px] aspect-[1/1.38] rounded-r-2xl rounded-l-md p-6 sm:p-10 text-stone-200 transition-all duration-700 ease-out transform hover:-rotate-y-2 hover:scale-[1.01] ${getThemeClass(
-          theme
-        )}`}
+        className="relative w-full max-w-[460px] sm:max-w-[520px] aspect-[1/1.38] rounded-r-2xl rounded-l-md p-6 sm:p-10 text-stone-200 transition-all duration-700 ease-out transform hover:-rotate-y-2 hover:scale-[1.01]"
         style={{
+          ...themeConfig.bookCoverStyle,
           boxShadow:
             'inset 4px 0 10px rgba(255,255,255,0.06), inset -6px 0 15px rgba(0,0,0,0.6), 25px 25px 50px rgba(0,0,0,0.8), 5px 10px 20px rgba(0,0,0,0.5)',
         }}
       >
-        {/* Left Book Spine visual ridge */}
-        <div className="absolute left-0 top-0 bottom-0 w-8 sm:w-10 rounded-l-md book-spine-gradient border-r border-amber-900/30 flex flex-col justify-between py-8 items-center pointer-events-none">
-          <div className="w-full h-1 bg-amber-400/20 shadow-sm" />
-          <div className="w-full h-1 bg-amber-400/20 shadow-sm" />
-          <div className="w-full h-1 bg-amber-400/20 shadow-sm" />
-          <div className="w-full h-1 bg-amber-400/20 shadow-sm" />
+        {/* Left Book Spine visual ridge with metallic spiral binding hints */}
+        <div className="absolute left-0 top-0 bottom-0 w-8 sm:w-10 rounded-l-md book-spine-gradient border-r border-amber-900/30 flex flex-col justify-between py-6 items-center pointer-events-none">
+          {Array.from({ length: 12 }).map((_, idx) => (
+            <div
+              key={idx}
+              className="w-6 sm:w-7 h-2 rounded-full bg-gradient-to-r from-[#dfc187] via-[#a88242] to-[#5a421b] shadow-md border-t border-[#fff4d6]/60 -rotate-6"
+            />
+          ))}
         </div>
 
         {/* Layered Paper Edges protruding from right edge */}
@@ -70,22 +61,34 @@ export const BookCover: React.FC<BookCoverProps> = ({
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-full border border-[#c5a66a]/40 bg-black/20 mb-2">
               <Sparkles className="w-5 h-5 text-[#dfc187]" />
             </div>
-            <p className="text-[11px] sm:text-xs tracking-[0.3em] uppercase text-[#dfc187]/80 font-cinzel">
-              Private Journal & Ledger
+            <p className="text-[11px] sm:text-xs tracking-[0.3em] uppercase text-[#dfc187]/90 font-cinzel">
+              Private Ledger & Reflections
             </p>
           </div>
 
           {/* Center Main Title */}
-          <div className="my-auto py-6">
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-cinzel font-bold tracking-wider gold-foil-text uppercase mb-3">
-              The Journal
+          <div className="my-auto py-4 sm:py-6">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-cinzel font-bold tracking-wider gold-foil-text uppercase mb-2">
+              Flip Journal
             </h1>
+
+            {/* Author Credit by Emmanuel Akpan */}
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <div className="w-8 h-[1px] bg-gradient-to-r from-transparent to-[#dfc187]/60" />
+              <p className="font-cormorant italic text-sm sm:text-base text-[#dfc187] tracking-widest font-medium">
+                by Emmanuel Akpan
+              </p>
+              <div className="w-8 h-[1px] bg-gradient-to-l from-transparent to-[#dfc187]/60" />
+            </div>
+
             <div className="w-24 h-[1.5px] mx-auto gold-foil-accent my-3 rounded-full opacity-80" />
-            <p className="font-cormorant italic text-lg sm:text-xl text-[#f3e5c8] max-w-xs mx-auto leading-snug">
+
+            <p className="font-cormorant italic text-base sm:text-lg text-[#f3e5c8] max-w-xs mx-auto leading-snug">
               A little more intentional, every day.
             </p>
+
             {isAuthenticated && userDisplayName && (
-              <p className="text-xs uppercase tracking-widest text-[#dfc187]/70 font-cinzel mt-4">
+              <p className="text-[11px] uppercase tracking-widest text-[#dfc187]/80 font-cinzel mt-4">
                 Kept by {userDisplayName}
               </p>
             )}
@@ -98,7 +101,7 @@ export const BookCover: React.FC<BookCoverProps> = ({
               className="w-full py-3.5 px-6 rounded-lg text-sm sm:text-base font-cinzel font-semibold tracking-wider text-stone-900 bg-gradient-to-r from-[#dfc187] via-[#c5a66a] to-[#dfc187] hover:brightness-110 active:scale-[0.99] transition-all shadow-lg flex items-center justify-center gap-2.5 cursor-pointer"
             >
               <BookOpen className="w-5 h-5 text-stone-900" />
-              <span>{isAuthenticated ? 'Open Journal' : 'Explore The Journal'}</span>
+              <span>{isAuthenticated ? 'Open Flip Journal' : 'Explore Flip Journal'}</span>
             </button>
 
             {!isAuthenticated ? (

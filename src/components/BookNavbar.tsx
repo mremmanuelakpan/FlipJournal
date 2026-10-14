@@ -13,7 +13,8 @@ import {
   CloudUpload,
   User,
 } from 'lucide-react';
-import { BookSection, SaveStatus } from '../types/journal';
+import { BookSection, SaveStatus, Theme } from '../types/journal';
+import { getTheme } from '../utils/theme';
 
 interface BookNavbarProps {
   activeSection: BookSection;
@@ -24,6 +25,7 @@ interface BookNavbarProps {
   isAuthenticated: boolean;
   userEmail?: string;
   onOpenAuth: () => void;
+  theme: Theme;
 }
 
 export const BookNavbar: React.FC<BookNavbarProps> = ({
@@ -35,7 +37,10 @@ export const BookNavbar: React.FC<BookNavbarProps> = ({
   isAuthenticated,
   userEmail,
   onOpenAuth,
+  theme,
 }) => {
+  const themeConfig = getTheme(theme);
+
   const navItems: { id: BookSection; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'journal', label: 'Journal', icon: Book },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
@@ -56,21 +61,21 @@ export const BookNavbar: React.FC<BookNavbarProps> = ({
         );
       case 'saved':
         return (
-          <div className="flex items-center gap-1.5 text-xs text-stone-400">
+          <div className="flex items-center gap-1.5 text-xs text-stone-300">
             <CloudCheck className="w-3.5 h-3.5 text-emerald-400/90" />
             <span className="hidden sm:inline">Saved</span>
           </div>
         );
       case 'unsaved':
         return (
-          <div className="flex items-center gap-1.5 text-xs text-stone-400">
+          <div className="flex items-center gap-1.5 text-xs text-stone-300">
             <div className="w-2 h-2 rounded-full bg-amber-400/80" />
-            <span className="hidden sm:inline">Draft local</span>
+            <span className="hidden sm:inline">Draft edited</span>
           </div>
         );
       case 'conflict':
         return (
-          <div className="flex items-center gap-1.5 text-xs text-rose-400">
+          <div className="flex items-center gap-1.5 text-xs text-rose-300">
             <AlertCircle className="w-3.5 h-3.5" />
             <span>Conflict</span>
           </div>
@@ -92,7 +97,13 @@ export const BookNavbar: React.FC<BookNavbarProps> = ({
   };
 
   return (
-    <header className="w-full bg-[#1b362a] border-b border-[#2d5845] text-stone-200 px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2 sm:gap-6 shadow-md select-none sticky top-0 z-40">
+    <header
+      className="w-full text-stone-200 px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2 sm:gap-6 shadow-md select-none sticky top-0 z-40 transition-colors duration-500"
+      style={{
+        backgroundColor: themeConfig.navbarBg,
+        borderBottom: `1px solid ${themeConfig.navbarBorder}`,
+      }}
+    >
       {/* Zone 1: Brand & Close Book Action */}
       <div className="flex items-center gap-2 sm:gap-4 shrink-0">
         <button
@@ -102,7 +113,7 @@ export const BookNavbar: React.FC<BookNavbarProps> = ({
         >
           <BookMarked className="w-4 h-4 text-[#dfc187] group-hover:scale-105 transition-transform" />
           <span className="font-cinzel font-bold text-sm tracking-widest whitespace-nowrap hidden md:inline">
-            THE JOURNAL
+            FLIP JOURNAL
           </span>
         </button>
       </div>

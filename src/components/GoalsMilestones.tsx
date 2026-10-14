@@ -13,10 +13,13 @@ import {
   PauseCircle,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { Goal, GoalMilestone, GoalStatus } from '../types/journal';
+import { Goal, GoalMilestone, GoalStatus, Profile } from '../types/journal';
+import { SpiralBinding } from './SpiralBinding';
+import { getTheme } from '../utils/theme';
 
 interface GoalsMilestonesProps {
   goals: Goal[];
+  profile: Profile;
   onCreateGoal: (goal: {
     name: string;
     description: string | null;
@@ -34,6 +37,7 @@ interface GoalsMilestonesProps {
 
 export const GoalsMilestones: React.FC<GoalsMilestonesProps> = ({
   goals,
+  profile,
   onCreateGoal,
   onUpdateGoal,
   onDeleteGoal,
@@ -113,31 +117,38 @@ export const GoalsMilestones: React.FC<GoalsMilestonesProps> = ({
     await onUpdateGoal(goalId, { status });
   };
 
-  return (
-    <div className="w-full max-w-7xl mx-auto py-4 sm:py-6 px-2 sm:px-4">
-      <div className="relative rounded-lg shadow-2xl overflow-hidden border border-[#c5a66a]/40 bg-[#244637] p-2 sm:p-4">
-        {/* Book Spine Center Gutter */}
-        <div className="hidden lg:block absolute left-1/2 top-0 bottom-0 w-8 -translate-x-1/2 z-20 pointer-events-none bg-gradient-to-r from-black/20 via-black/40 to-black/20 shadow-inner" />
+  const themeConfig = getTheme(profile.theme);
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-0 min-h-[680px]">
-          {/* ========================================================= */}
-          {/* LEFT PAGE: Goals Index & Progress Overview                */}
-          {/* ========================================================= */}
-          <div className="paper-surface paper-surface-left p-6 sm:p-8 lg:p-10 rounded-l-md border-r border-[#e0d6c1] flex flex-col justify-between text-stone-800 paper-scroll overflow-y-auto max-h-[82vh]">
-            <div>
-              <div className="border-b border-stone-300/80 pb-3 mb-6 flex items-center justify-between">
-                <div>
-                  <span className="text-[11px] font-cinzel tracking-[0.25em] uppercase text-stone-500 block">
-                    Life Architecture
-                  </span>
-                  <h2 className="text-2xl font-cormorant font-semibold text-stone-900">
-                    Goals & Aspirations
-                  </h2>
-                </div>
-                <button
-                  onClick={() => setIsCreatingNew(true)}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-cinzel bg-[#244637] hover:bg-[#1b362a] text-amber-100 rounded transition-colors cursor-pointer"
-                >
+  return (
+    <div className="w-full max-w-7xl mx-auto py-3 sm:py-5 px-2 sm:px-4">
+      <div
+        className="relative rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.85)] border-2 border-[#c5a66a]/60 p-3 sm:p-4 lg:p-5 transition-colors duration-500"
+        style={themeConfig.bookCoverStyle}
+      >
+        <div className="absolute inset-1.5 sm:inset-2 rounded-xl border border-[#c5a66a]/30 pointer-events-none" />
+
+        <div className="relative rounded-lg overflow-hidden bg-[#f7f2e8] border border-[#d6c7ab] shadow-[0_2px_4px_rgba(0,0,0,0.08),2px_2px_0px_#ede4d4,4px_4px_0px_#dfd2bc,0_16px_36px_-6px_rgba(0,0,0,0.5)]">
+          <SpiralBinding ringCount={22} />
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 min-h-[660px]">
+            {/* ========================================================= */}
+            {/* LEFT PAGE: Goals Index & Progress Overview                */}
+            {/* ========================================================= */}
+            <div className="paper-surface paper-surface-left p-6 sm:p-8 lg:p-9 lg:pr-12 border-b lg:border-b-0 lg:border-r border-[#d9ceb9] flex flex-col justify-between text-stone-800">
+              <div>
+                <div className="border-b border-stone-300/80 pb-3 mb-5 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] font-cinzel tracking-[0.25em] uppercase text-stone-500 block mb-1">
+                      Life Architecture
+                    </span>
+                    <h2 className="text-2xl sm:text-3xl font-cormorant font-semibold text-stone-900">
+                      Goals & Aspirations
+                    </h2>
+                  </div>
+                  <button
+                    onClick={() => setIsCreatingNew(true)}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-cinzel bg-[#244637] hover:bg-[#1b362a] text-amber-100 rounded transition-colors cursor-pointer"
+                  >
                   <Plus className="w-3.5 h-3.5" />
                   <span>New Goal</span>
                 </button>
@@ -258,7 +269,7 @@ export const GoalsMilestones: React.FC<GoalsMilestonesProps> = ({
           {/* ========================================================= */}
           {/* RIGHT PAGE: Goal Details & Milestones Checklist / Form    */}
           {/* ========================================================= */}
-          <div className="paper-surface paper-surface-right p-6 sm:p-8 lg:p-10 rounded-r-md flex flex-col justify-between text-stone-800 paper-scroll overflow-y-auto max-h-[82vh]">
+          <div className="paper-surface paper-surface-right p-6 sm:p-8 lg:p-9 lg:pl-12 flex flex-col justify-between text-stone-800">
             {isCreatingNew ? (
               /* Create New Goal View */
               <div className="flex-1 flex flex-col">
@@ -486,5 +497,6 @@ export const GoalsMilestones: React.FC<GoalsMilestonesProps> = ({
         </div>
       </div>
     </div>
+  </div>
   );
 };

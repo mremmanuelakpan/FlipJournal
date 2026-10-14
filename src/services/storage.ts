@@ -9,6 +9,7 @@ import {
   WeeklyReview,
   EntrySectionPreferences,
   Mood,
+  Theme,
 } from '../types/journal';
 
 export interface AuthUser {
@@ -214,18 +215,61 @@ export async function resetPasswordForEmail(email: string): Promise<{ success: b
   };
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export async function getAuthenticatedSupabaseUserId(): Promise<string | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+  try {
+    const { data: sessionData } = await client.auth.getSession();
+    if (sessionData?.session?.user?.id) {
+      return sessionData.session.user.id;
+    }
+    const { data: userData } = await client.auth.getUser();
+    if (userData?.user?.id) {
+      return userData.user.id;
+    }
+  } catch {
+    // Offline or session error
+  }
+  return null;
+}
+
+export async function getEffectiveDbUserId(providedId: string): Promise<string | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+  const authId = await getAuthenticatedSupabaseUserId();
+  if (authId) return authId;
+  if (UUID_REGEX.test(providedId)) return providedId;
+  return null;
+}
+
 export async function getCurrentActiveUser(): Promise<AuthUser | null> {
   const client = getSupabaseClient();
   if (client) {
     try {
+      const { data: sessionData } = await client.auth.getSession();
+      if (sessionData?.session?.user) {
+        const u = sessionData.session.user;
+        const active: AuthUser = {
+          id: u.id,
+          email: u.email || '',
+          displayName: u.user_metadata?.display_name || (u.email ? u.email.split('@')[0] : 'Writer'),
+          createdAt: u.created_at,
+        };
+        setStored(ACTIVE_SESSION_KEY, active);
+        return active;
+      }
       const { data } = await client.auth.getUser();
-      if (data.user) {
-        return {
+      if (data?.user) {
+        const active: AuthUser = {
           id: data.user.id,
           email: data.user.email || '',
           displayName: data.user.user_metadata?.display_name || (data.user.email ? data.user.email.split('@')[0] : 'Writer'),
           createdAt: data.user.created_at,
         };
+        setStored(ACTIVE_SESSION_KEY, active);
+        return active;
       }
     } catch (err) {
       console.warn('Supabase auth get user failed, fallback to local session:', err);
@@ -238,30 +282,42 @@ export async function getCurrentActiveUser(): Promise<AuthUser | null> {
 // Profiles
 // ---------------------------------------------------------------------
 export async function fetchProfile(userId: string): Promise<Profile> {
+  const localSavedTheme = (localStorage.getItem('flip_journal_theme') as Theme) || 'forest';
+
   const defaultProfile: Profile = {
     id: userId,
     display_name: 'Journal Keeper',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
     week_starts_on: 1,
-    theme: 'forest',
+    theme: localSavedTheme,
     text_size: 'medium',
     line_spacing: 'comfortable',
     reduced_motion: false,
   };
 
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+  if (client && dbUserId) {
     try {
-      const { data, error } = await client.from('profiles').select('*').eq('id', userId).maybeSingle();
-      if (!error && data) return data as Profile;
+      const { data, error } = await client.from('profiles').select('*').eq('id', dbUserId).maybeSingle();
+      if (!error && data) {
+        const theme = (data.theme as Theme) || localSavedTheme;
+        localStorage.setItem('flip_journal_theme', theme);
+        return {
+          ...data,
+          theme,
+        } as Profile;
+      }
     } catch (err) {
       console.warn('Supabase profile fetch error:', err);
     }
   }
 
   const profiles = getStored<Profile[]>(PROFILES_KEY, []);
-  const found = profiles.find((p) => p.id === userId);
-  if (found) return found;
+  const found = profiles.find((p) => p.id === userId || (dbUserId && p.id === dbUserId));
+  if (found) {
+    return { ...found, theme: found.theme || localSavedTheme };
+  }
 
   // Insert default profile
   profiles.push(defaultProfile);
@@ -270,13 +326,18 @@ export async function fetchProfile(userId: string): Promise<Profile> {
 }
 
 export async function updateProfile(userId: string, updates: Partial<Profile>): Promise<Profile> {
+  if (updates.theme) {
+    localStorage.setItem('flip_journal_theme', updates.theme);
+  }
+
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+  if (client && dbUserId) {
     try {
       const { data, error } = await client
         .from('profiles')
         .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', userId)
+        .eq('id', dbUserId)
         .select()
         .single();
       if (!error && data) return data as Profile;
@@ -286,7 +347,7 @@ export async function updateProfile(userId: string, updates: Partial<Profile>): 
   }
 
   const profiles = getStored<Profile[]>(PROFILES_KEY, []);
-  const index = profiles.findIndex((p) => p.id === userId);
+  const index = profiles.findIndex((p) => p.id === userId || (dbUserId && p.id === dbUserId));
   const existing = index >= 0 ? profiles[index] : { id: userId, display_name: '', timezone: 'UTC', week_starts_on: 1 as const, theme: 'forest' as const, text_size: 'medium' as const, line_spacing: 'comfortable' as const, reduced_motion: false };
   const updated: Profile = {
     ...existing,
@@ -304,19 +365,28 @@ export async function updateProfile(userId: string, updates: Partial<Profile>): 
 }
 
 // ---------------------------------------------------------------------
-// Journal Entries (with Concurrency Revision Protection)
+// Journal Entries (with Reliable Autosave & Supabase Persistence)
 // ---------------------------------------------------------------------
 export async function fetchEntries(
   userId: string,
   options?: { startDate?: string; endDate?: string; mood?: Mood | 'all'; query?: string }
 ): Promise<JournalEntry[]> {
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+
+  if (client && dbUserId) {
     try {
-      let q = client.from('journal_entries').select('*').eq('user_id', userId).order('journal_date', { ascending: false }).order('created_at', { ascending: false });
+      let q = client
+        .from('journal_entries')
+        .select('*')
+        .eq('user_id', dbUserId)
+        .order('journal_date', { ascending: false })
+        .order('created_at', { ascending: false });
+
       if (options?.startDate) q = q.gte('journal_date', options.startDate);
       if (options?.endDate) q = q.lte('journal_date', options.endDate);
       if (options?.mood && options.mood !== 'all') q = q.eq('mood', options.mood);
+
       const { data, error } = await q;
       if (!error && data) {
         let results = data as JournalEntry[];
@@ -326,6 +396,8 @@ export async function fetchEntries(
             (e) => (e.title && e.title.toLowerCase().includes(lq)) || (e.body && e.body.toLowerCase().includes(lq))
           );
         }
+        // Mirror fetched remote entries in local cache
+        setStored(ENTRIES_KEY, results);
         return results;
       }
     } catch (err) {
@@ -333,7 +405,10 @@ export async function fetchEntries(
     }
   }
 
-  let entries = getStored<JournalEntry[]>(ENTRIES_KEY, []).filter((e) => e.user_id === userId);
+  let entries = getStored<JournalEntry[]>(ENTRIES_KEY, []);
+  if (dbUserId) {
+    entries = entries.filter((e) => e.user_id === dbUserId || e.user_id === userId || e.user_id === 'local_guest' || e.user_id === 'local_user');
+  }
 
   if (options?.startDate) {
     entries = entries.filter((e) => e.journal_date >= options.startDate!);
@@ -367,13 +442,15 @@ export async function fetchEntries(
 
 export async function fetchEntryById(userId: string, entryId: string): Promise<JournalEntry | null> {
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+
+  if (client && dbUserId) {
     try {
       const { data, error } = await client
         .from('journal_entries')
         .select('*')
         .eq('id', entryId)
-        .eq('user_id', userId)
+        .eq('user_id', dbUserId)
         .maybeSingle();
       if (!error && data) return data as JournalEntry;
     } catch (err) {
@@ -382,7 +459,7 @@ export async function fetchEntryById(userId: string, entryId: string): Promise<J
   }
 
   const entries = getStored<JournalEntry[]>(ENTRIES_KEY, []);
-  const found = entries.find((e) => e.id === entryId && e.user_id === userId);
+  const found = entries.find((e) => e.id === entryId);
   return found || null;
 }
 
@@ -405,108 +482,141 @@ export async function saveJournalEntry(
   error?: string;
 }> {
   const client = getSupabaseClient();
-  if (client) {
-    try {
-      // Call concurrency RPC if entry already exists, or direct insert
-      if (entryData.id) {
-        const { data, error } = await client.rpc('save_journal_entry_with_revision', {
-          p_entry_id: entryData.id,
-          p_journal_date: entryData.journal_date,
-          p_title: entryData.title,
-          p_body: entryData.body,
-          p_mood: entryData.mood,
-          p_sections: entryData.sections || {},
-          p_expected_revision: entryData.expected_revision ?? 1,
-        });
+  const dbUserId = await getEffectiveDbUserId(userId);
+  const validMoods: Mood[] = ['calm', 'grateful', 'focused', 'reflective', 'energized', 'anxious', 'tired', 'content'];
+  const safeMood = entryData.mood && validMoods.includes(entryData.mood) ? entryData.mood : null;
+  const safeTitle = entryData.title ? entryData.title.trim() : null;
+  const safeBody = entryData.body ?? '';
+  const safeSections = (typeof entryData.sections === 'object' && entryData.sections !== null) ? entryData.sections : {};
 
-        if (error) {
-          return { success: false, error: error.message };
-        }
-        if (data && data[0]) {
-          const res = data[0];
-          if (res.conflict_detected) {
-            return {
-              success: false,
-              conflict: true,
-              currentRevision: res.current_revision,
-              error: 'Conflict: This entry was modified in another window or session.',
-            };
+  // If connected to Supabase and authenticated with a valid Supabase user
+  if (client && dbUserId) {
+    try {
+      if (entryData.id) {
+        // Check if entry exists in Supabase
+        const { data: existingRemote } = await client
+          .from('journal_entries')
+          .select('id, revision')
+          .eq('id', entryData.id)
+          .eq('user_id', dbUserId)
+          .maybeSingle();
+
+        if (existingRemote) {
+          const nextRevision = (existingRemote.revision || 1) + 1;
+          const { data: updated, error: updateError } = await client
+            .from('journal_entries')
+            .update({
+              journal_date: entryData.journal_date,
+              title: safeTitle,
+              body: safeBody,
+              mood: safeMood,
+              sections: safeSections,
+              revision: nextRevision,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', entryData.id)
+            .eq('user_id', dbUserId)
+            .select()
+            .maybeSingle();
+
+          if (!updateError && updated) {
+            const localEntries = getStored<JournalEntry[]>(ENTRIES_KEY, []);
+            const idx = localEntries.findIndex((e) => e.id === updated.id);
+            if (idx >= 0) localEntries[idx] = updated as JournalEntry;
+            else localEntries.unshift(updated as JournalEntry);
+            setStored(ENTRIES_KEY, localEntries);
+
+            return { success: true, entry: updated as JournalEntry };
           }
-          const { data: updatedEntry } = await client.from('journal_entries').select('*').eq('id', res.entry_id).single();
-          return { success: true, entry: updatedEntry as JournalEntry };
+        } else {
+          // If not found in remote database, insert with this id
+          const { data: inserted, error: insertError } = await client
+            .from('journal_entries')
+            .insert({
+              id: entryData.id,
+              user_id: dbUserId,
+              journal_date: entryData.journal_date,
+              title: safeTitle,
+              body: safeBody,
+              mood: safeMood,
+              sections: safeSections,
+              revision: 1,
+            })
+            .select()
+            .maybeSingle();
+
+          if (!insertError && inserted) {
+            const localEntries = getStored<JournalEntry[]>(ENTRIES_KEY, []);
+            const idx = localEntries.findIndex((e) => e.id === inserted.id);
+            if (idx >= 0) localEntries[idx] = inserted as JournalEntry;
+            else localEntries.unshift(inserted as JournalEntry);
+            setStored(ENTRIES_KEY, localEntries);
+            return { success: true, entry: inserted as JournalEntry };
+          }
         }
       } else {
-        const { data, error } = await client
+        // Insert new record in Supabase
+        const { data: inserted, error: insertError } = await client
           .from('journal_entries')
           .insert({
-            user_id: userId,
+            user_id: dbUserId,
             journal_date: entryData.journal_date,
-            title: entryData.title,
-            body: entryData.body,
-            mood: entryData.mood,
-            sections: entryData.sections || {},
+            title: safeTitle,
+            body: safeBody,
+            mood: safeMood,
+            sections: safeSections,
             revision: 1,
           })
           .select()
-          .single();
+          .maybeSingle();
 
-        if (error) return { success: false, error: error.message };
-        return { success: true, entry: data as JournalEntry };
+        if (!insertError && inserted) {
+          const localEntries = getStored<JournalEntry[]>(ENTRIES_KEY, []);
+          localEntries.unshift(inserted as JournalEntry);
+          setStored(ENTRIES_KEY, localEntries);
+          return { success: true, entry: inserted as JournalEntry };
+        }
       }
     } catch (err: any) {
-      console.warn('Supabase save journal error:', err);
-      return { success: false, error: err.message || 'Network error saving entry.' };
+      console.warn('Supabase save error, persisting to local storage:', err);
     }
   }
 
-  // Local persistent DB with revision tracking
+  // Reliable persistent storage engine (dual write / fallback / unauthenticated)
   const entries = getStored<JournalEntry[]>(ENTRIES_KEY, []);
   const now = new Date().toISOString();
+  const effectiveId = entryData.id || crypto.randomUUID();
 
-  if (entryData.id) {
-    const index = entries.findIndex((e) => e.id === entryData.id && e.user_id === userId);
-    if (index === -1) {
-      return { success: false, error: 'Entry not found or access denied.' };
-    }
+  const index = entries.findIndex((e) => e.id === effectiveId);
 
+  if (index >= 0) {
     const current = entries[index];
-    if (entryData.expected_revision !== undefined && current.revision !== entryData.expected_revision) {
-      return {
-        success: false,
-        conflict: true,
-        currentRevision: current.revision,
-        error: 'Conflict detected: The entry has been updated since you opened it.',
-      };
-    }
-
     const updated: JournalEntry = {
       ...current,
       journal_date: entryData.journal_date,
-      title: entryData.title,
-      body: entryData.body,
-      mood: entryData.mood,
-      sections: entryData.sections || {},
-      revision: current.revision + 1,
+      title: safeTitle,
+      body: safeBody,
+      mood: safeMood,
+      sections: safeSections,
+      revision: (current.revision || 1) + 1,
       updated_at: now,
     };
-
     entries[index] = updated;
     setStored(ENTRIES_KEY, entries);
     return { success: true, entry: updated };
   } else {
     const newEntry: JournalEntry = {
-      id: crypto.randomUUID(),
-      user_id: userId,
+      id: effectiveId,
+      user_id: dbUserId || (UUID_REGEX.test(userId) ? userId : 'local_user'),
       journal_date: entryData.journal_date,
-      title: entryData.title,
-      body: entryData.body,
-      mood: entryData.mood,
-      sections: entryData.sections || {},
+      title: safeTitle,
+      body: safeBody,
+      mood: safeMood,
+      sections: safeSections,
       revision: 1,
       created_at: now,
       updated_at: now,
     };
-
     entries.unshift(newEntry);
     setStored(ENTRIES_KEY, entries);
     return { success: true, entry: newEntry };
@@ -515,17 +625,24 @@ export async function saveJournalEntry(
 
 export async function deleteJournalEntry(userId: string, entryId: string): Promise<boolean> {
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+
+  if (client && dbUserId) {
     try {
-      const { error } = await client.from('journal_entries').delete().eq('id', entryId).eq('user_id', userId);
-      if (!error) return true;
+      const { error } = await client.from('journal_entries').delete().eq('id', entryId).eq('user_id', dbUserId);
+      if (!error) {
+        const entries = getStored<JournalEntry[]>(ENTRIES_KEY, []);
+        const filtered = entries.filter((e) => e.id !== entryId);
+        setStored(ENTRIES_KEY, filtered);
+        return true;
+      }
     } catch (err) {
       console.warn('Supabase delete entry error:', err);
     }
   }
 
   const entries = getStored<JournalEntry[]>(ENTRIES_KEY, []);
-  const filtered = entries.filter((e) => !(e.id === entryId && e.user_id === userId));
+  const filtered = entries.filter((e) => e.id !== entryId);
   setStored(ENTRIES_KEY, filtered);
   return true;
 }
@@ -535,19 +652,20 @@ export async function deleteJournalEntry(userId: string, entryId: string): Promi
 // ---------------------------------------------------------------------
 export async function fetchGoals(userId: string): Promise<Goal[]> {
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+  if (client && dbUserId) {
     try {
       const { data: goalsData, error: goalsError } = await client
         .from('goals')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', dbUserId)
         .order('created_at', { ascending: false });
 
       if (!goalsError && goalsData) {
         const { data: milestonesData } = await client
           .from('goal_milestones')
           .select('*')
-          .eq('user_id', userId)
+          .eq('user_id', dbUserId)
           .order('position', { ascending: true });
 
         const milestonesByGoal = (milestonesData || []).reduce((acc: any, m: any) => {
@@ -556,18 +674,20 @@ export async function fetchGoals(userId: string): Promise<Goal[]> {
           return acc;
         }, {});
 
-        return (goalsData as Goal[]).map((g) => ({
+        const result = (goalsData as Goal[]).map((g) => ({
           ...g,
           milestones: milestonesByGoal[g.id] || [],
         }));
+        setStored(GOALS_KEY, result);
+        return result;
       }
     } catch (err) {
       console.warn('Supabase fetch goals error:', err);
     }
   }
 
-  const goals = getStored<Goal[]>(GOALS_KEY, []).filter((g) => g.user_id === userId);
-  const milestones = getStored<GoalMilestone[]>(MILESTONES_KEY, []).filter((m) => m.user_id === userId);
+  const goals = getStored<Goal[]>(GOALS_KEY, []).filter((g) => g.user_id === userId || (dbUserId && g.user_id === dbUserId) || g.user_id === 'local_guest' || g.user_id === 'local_user');
+  const milestones = getStored<GoalMilestone[]>(MILESTONES_KEY, []).filter((m) => m.user_id === userId || (dbUserId && m.user_id === dbUserId) || m.user_id === 'local_guest' || m.user_id === 'local_user');
 
   return goals.map((g) => ({
     ...g,
@@ -587,17 +707,24 @@ export async function createGoal(
   }
 ): Promise<Goal> {
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+  if (client && dbUserId) {
     try {
       const { data, error } = await client
         .from('goals')
         .insert({
-          user_id: userId,
+          user_id: dbUserId,
           ...goal,
         })
         .select()
         .single();
-      if (!error && data) return { ...data, milestones: [] } as Goal;
+      if (!error && data) {
+        const newGoal = { ...data, milestones: [] } as Goal;
+        const goals = getStored<Goal[]>(GOALS_KEY, []);
+        goals.unshift(newGoal);
+        setStored(GOALS_KEY, goals);
+        return newGoal;
+      }
     } catch (err) {
       console.warn('Supabase create goal error:', err);
     }
@@ -607,7 +734,7 @@ export async function createGoal(
   const now = new Date().toISOString();
   const newGoal: Goal = {
     id: crypto.randomUUID(),
-    user_id: userId,
+    user_id: dbUserId || userId,
     name: goal.name,
     description: goal.description,
     status: goal.status,
@@ -625,23 +752,32 @@ export async function createGoal(
 
 export async function updateGoal(userId: string, goalId: string, updates: Partial<Goal>): Promise<Goal | null> {
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+  if (client && dbUserId) {
     try {
       const { data, error } = await client
         .from('goals')
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq('id', goalId)
-        .eq('user_id', userId)
+        .eq('user_id', dbUserId)
         .select()
         .single();
-      if (!error && data) return data as Goal;
+      if (!error && data) {
+        const goals = getStored<Goal[]>(GOALS_KEY, []);
+        const idx = goals.findIndex((g) => g.id === goalId);
+        if (idx >= 0) {
+          goals[idx] = { ...goals[idx], ...data };
+          setStored(GOALS_KEY, goals);
+        }
+        return data as Goal;
+      }
     } catch (err) {
       console.warn('Supabase update goal error:', err);
     }
   }
 
   const goals = getStored<Goal[]>(GOALS_KEY, []);
-  const index = goals.findIndex((g) => g.id === goalId && g.user_id === userId);
+  const index = goals.findIndex((g) => g.id === goalId);
   if (index === -1) return null;
 
   const updated: Goal = {
@@ -656,16 +792,17 @@ export async function updateGoal(userId: string, goalId: string, updates: Partia
 
 export async function deleteGoal(userId: string, goalId: string): Promise<boolean> {
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+  if (client && dbUserId) {
     try {
-      await client.from('goals').delete().eq('id', goalId).eq('user_id', userId);
+      await client.from('goals').delete().eq('id', goalId).eq('user_id', dbUserId);
     } catch (err) {
       console.warn('Supabase delete goal error:', err);
     }
   }
 
-  const goals = getStored<Goal[]>(GOALS_KEY, []).filter((g) => !(g.id === goalId && g.user_id === userId));
-  const milestones = getStored<GoalMilestone[]>(MILESTONES_KEY, []).filter((m) => !(m.goal_id === goalId && m.user_id === userId));
+  const goals = getStored<Goal[]>(GOALS_KEY, []).filter((g) => g.id !== goalId);
+  const milestones = getStored<GoalMilestone[]>(MILESTONES_KEY, []).filter((m) => m.goal_id !== goalId);
   setStored(GOALS_KEY, goals);
   setStored(MILESTONES_KEY, milestones);
   return true;
@@ -678,20 +815,26 @@ export async function addMilestone(
   description?: string
 ): Promise<GoalMilestone> {
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+  if (client && dbUserId) {
     try {
       const { data, error } = await client
         .from('goal_milestones')
         .insert({
           goal_id: goalId,
-          user_id: userId,
+          user_id: dbUserId,
           name: name.trim(),
           description: description?.trim() || null,
           completed: false,
         })
         .select()
         .single();
-      if (!error && data) return data as GoalMilestone;
+      if (!error && data) {
+        const milestones = getStored<GoalMilestone[]>(MILESTONES_KEY, []);
+        milestones.push(data as GoalMilestone);
+        setStored(MILESTONES_KEY, milestones);
+        return data as GoalMilestone;
+      }
     } catch (err) {
       console.warn('Supabase add milestone error:', err);
     }
@@ -703,7 +846,7 @@ export async function addMilestone(
   const newMilestone: GoalMilestone = {
     id: crypto.randomUUID(),
     goal_id: goalId,
-    user_id: userId,
+    user_id: dbUserId || userId,
     name: name.trim(),
     description: description?.trim(),
     position: goalMilestones.length,
@@ -724,7 +867,8 @@ export async function toggleMilestone(
 ): Promise<GoalMilestone | null> {
   const now = completed ? new Date().toISOString() : null;
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+  if (client && dbUserId) {
     try {
       const { data, error } = await client
         .from('goal_milestones')
@@ -734,17 +878,25 @@ export async function toggleMilestone(
           updated_at: new Date().toISOString(),
         })
         .eq('id', milestoneId)
-        .eq('user_id', userId)
+        .eq('user_id', dbUserId)
         .select()
         .single();
-      if (!error && data) return data as GoalMilestone;
+      if (!error && data) {
+        const milestones = getStored<GoalMilestone[]>(MILESTONES_KEY, []);
+        const idx = milestones.findIndex((m) => m.id === milestoneId);
+        if (idx >= 0) {
+          milestones[idx] = data as GoalMilestone;
+          setStored(MILESTONES_KEY, milestones);
+        }
+        return data as GoalMilestone;
+      }
     } catch (err) {
       console.warn('Supabase toggle milestone error:', err);
     }
   }
 
   const milestones = getStored<GoalMilestone[]>(MILESTONES_KEY, []);
-  const index = milestones.findIndex((m) => m.id === milestoneId && m.user_id === userId);
+  const index = milestones.findIndex((m) => m.id === milestoneId);
   if (index === -1) return null;
 
   milestones[index] = {
@@ -759,16 +911,17 @@ export async function toggleMilestone(
 
 export async function deleteMilestone(userId: string, milestoneId: string): Promise<boolean> {
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+  if (client && dbUserId) {
     try {
-      await client.from('goal_milestones').delete().eq('id', milestoneId).eq('user_id', userId);
+      await client.from('goal_milestones').delete().eq('id', milestoneId).eq('user_id', dbUserId);
     } catch (err) {
       console.warn('Supabase delete milestone error:', err);
     }
   }
 
   const milestones = getStored<GoalMilestone[]>(MILESTONES_KEY, []).filter(
-    (m) => !(m.id === milestoneId && m.user_id === userId)
+    (m) => m.id !== milestoneId
   );
   setStored(MILESTONES_KEY, milestones);
   return true;
@@ -779,20 +932,24 @@ export async function deleteMilestone(userId: string, milestoneId: string): Prom
 // ---------------------------------------------------------------------
 export async function fetchHabits(userId: string): Promise<Habit[]> {
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+  if (client && dbUserId) {
     try {
       const { data, error } = await client
         .from('habits')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', dbUserId)
         .order('created_at', { ascending: true });
-      if (!error && data) return data as Habit[];
+      if (!error && data) {
+        setStored(HABITS_KEY, data);
+        return data as Habit[];
+      }
     } catch (err) {
       console.warn('Supabase fetch habits error:', err);
     }
   }
 
-  return getStored<Habit[]>(HABITS_KEY, []).filter((h) => h.user_id === userId);
+  return getStored<Habit[]>(HABITS_KEY, []).filter((h) => h.user_id === userId || (dbUserId && h.user_id === dbUserId) || h.user_id === 'local_guest' || h.user_id === 'local_user');
 }
 
 export async function createHabit(
@@ -806,18 +963,24 @@ export async function createHabit(
   }
 ): Promise<Habit> {
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+  if (client && dbUserId) {
     try {
       const { data, error } = await client
         .from('habits')
         .insert({
-          user_id: userId,
+          user_id: dbUserId,
           ...habit,
           status: 'active',
         })
         .select()
         .single();
-      if (!error && data) return data as Habit;
+      if (!error && data) {
+        const habits = getStored<Habit[]>(HABITS_KEY, []);
+        habits.push(data as Habit);
+        setStored(HABITS_KEY, habits);
+        return data as Habit;
+      }
     } catch (err) {
       console.warn('Supabase create habit error:', err);
     }
@@ -827,7 +990,7 @@ export async function createHabit(
   const now = new Date().toISOString();
   const newHabit: Habit = {
     id: crypto.randomUUID(),
-    user_id: userId,
+    user_id: dbUserId || userId,
     goal_id: habit.goal_id,
     name: habit.name,
     description: habit.description,
@@ -844,23 +1007,32 @@ export async function createHabit(
 
 export async function updateHabit(userId: string, habitId: string, updates: Partial<Habit>): Promise<Habit | null> {
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+  if (client && dbUserId) {
     try {
       const { data, error } = await client
         .from('habits')
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq('id', habitId)
-        .eq('user_id', userId)
+        .eq('user_id', dbUserId)
         .select()
         .single();
-      if (!error && data) return data as Habit;
+      if (!error && data) {
+        const habits = getStored<Habit[]>(HABITS_KEY, []);
+        const idx = habits.findIndex((h) => h.id === habitId);
+        if (idx >= 0) {
+          habits[idx] = data as Habit;
+          setStored(HABITS_KEY, habits);
+        }
+        return data as Habit;
+      }
     } catch (err) {
       console.warn('Supabase update habit error:', err);
     }
   }
 
   const habits = getStored<Habit[]>(HABITS_KEY, []);
-  const index = habits.findIndex((h) => h.id === habitId && h.user_id === userId);
+  const index = habits.findIndex((h) => h.id === habitId);
   if (index === -1) return null;
 
   const updated: Habit = {
@@ -875,17 +1047,18 @@ export async function updateHabit(userId: string, habitId: string, updates: Part
 
 export async function deleteHabit(userId: string, habitId: string): Promise<boolean> {
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+  if (client && dbUserId) {
     try {
-      await client.from('habits').delete().eq('id', habitId).eq('user_id', userId);
+      await client.from('habits').delete().eq('id', habitId).eq('user_id', dbUserId);
     } catch (err) {
       console.warn('Supabase delete habit error:', err);
     }
   }
 
-  const habits = getStored<Habit[]>(HABITS_KEY, []).filter((h) => !(h.id === habitId && h.user_id === userId));
+  const habits = getStored<Habit[]>(HABITS_KEY, []).filter((h) => h.id !== habitId);
   const completions = getStored<HabitCompletion[]>(COMPLETIONS_KEY, []).filter(
-    (c) => !(c.habit_id === habitId && c.user_id === userId)
+    (c) => c.habit_id !== habitId
   );
   setStored(HABITS_KEY, habits);
   setStored(COMPLETIONS_KEY, completions);
@@ -898,19 +1071,26 @@ export async function fetchHabitCompletions(
   endDate?: string
 ): Promise<HabitCompletion[]> {
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+  if (client && dbUserId) {
     try {
-      let q = client.from('habit_completions').select('*').eq('user_id', userId);
+      let q = client.from('habit_completions').select('*').eq('user_id', dbUserId);
       if (startDate) q = q.gte('completed_on', startDate);
       if (endDate) q = q.lte('completed_on', endDate);
       const { data, error } = await q;
-      if (!error && data) return data as HabitCompletion[];
+      if (!error && data) {
+        setStored(COMPLETIONS_KEY, data);
+        return data as HabitCompletion[];
+      }
     } catch (err) {
       console.warn('Supabase fetch completions error:', err);
     }
   }
 
-  let list = getStored<HabitCompletion[]>(COMPLETIONS_KEY, []).filter((c) => c.user_id === userId);
+  let list = getStored<HabitCompletion[]>(COMPLETIONS_KEY, []);
+  if (dbUserId) {
+    list = list.filter((c) => c.user_id === dbUserId || c.user_id === userId || c.user_id === 'local_guest' || c.user_id === 'local_user');
+  }
   if (startDate) list = list.filter((c) => c.completed_on >= startDate);
   if (endDate) list = list.filter((c) => c.completed_on <= endDate);
   return list;
@@ -922,7 +1102,8 @@ export async function toggleHabitCompletion(
   dateStr: string
 ): Promise<{ completed: boolean }> {
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+  if (client && dbUserId) {
     try {
       // Check if completion exists
       const { data: existing } = await client
@@ -930,18 +1111,27 @@ export async function toggleHabitCompletion(
         .select('id')
         .eq('habit_id', habitId)
         .eq('completed_on', dateStr)
-        .eq('user_id', userId)
+        .eq('user_id', dbUserId)
         .maybeSingle();
 
       if (existing) {
         await client.from('habit_completions').delete().eq('id', existing.id);
+        const completions = getStored<HabitCompletion[]>(COMPLETIONS_KEY, []).filter((c) => c.id !== existing.id);
+        setStored(COMPLETIONS_KEY, completions);
         return { completed: false };
       } else {
-        await client.from('habit_completions').insert({
-          habit_id: habitId,
-          user_id: userId,
-          completed_on: dateStr,
-        });
+        const { data: inserted } = await client
+          .from('habit_completions')
+          .insert({
+            habit_id: habitId,
+            user_id: dbUserId,
+            completed_on: dateStr,
+          })
+          .select()
+          .single();
+        const completions = getStored<HabitCompletion[]>(COMPLETIONS_KEY, []);
+        if (inserted) completions.push(inserted as HabitCompletion);
+        setStored(COMPLETIONS_KEY, completions);
         return { completed: true };
       }
     } catch (err) {
@@ -951,7 +1141,7 @@ export async function toggleHabitCompletion(
 
   const completions = getStored<HabitCompletion[]>(COMPLETIONS_KEY, []);
   const existingIndex = completions.findIndex(
-    (c) => c.habit_id === habitId && c.completed_on === dateStr && c.user_id === userId
+    (c) => c.habit_id === habitId && c.completed_on === dateStr
   );
 
   if (existingIndex >= 0) {
@@ -962,7 +1152,7 @@ export async function toggleHabitCompletion(
     completions.push({
       id: crypto.randomUUID(),
       habit_id: habitId,
-      user_id: userId,
+      user_id: dbUserId || userId,
       completed_on: dateStr,
       created_at: new Date().toISOString(),
     });
@@ -976,12 +1166,13 @@ export async function toggleHabitCompletion(
 // ---------------------------------------------------------------------
 export async function fetchWeeklyReview(userId: string, weekStart: string): Promise<WeeklyReview | null> {
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+  if (client && dbUserId) {
     try {
       const { data, error } = await client
         .from('weekly_reviews')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', dbUserId)
         .eq('week_start', weekStart)
         .maybeSingle();
       if (!error && data) return data as WeeklyReview;
@@ -991,7 +1182,7 @@ export async function fetchWeeklyReview(userId: string, weekStart: string): Prom
   }
 
   const reviews = getStored<WeeklyReview[]>(REVIEWS_KEY, []);
-  return reviews.find((r) => r.user_id === userId && r.week_start === weekStart) || null;
+  return reviews.find((r) => (r.user_id === userId || (dbUserId && r.user_id === dbUserId)) && r.week_start === weekStart) || null;
 }
 
 export async function saveWeeklyReview(
@@ -1002,13 +1193,14 @@ export async function saveWeeklyReview(
 ): Promise<WeeklyReview> {
   const now = new Date().toISOString();
   const client = getSupabaseClient();
-  if (client) {
+  const dbUserId = await getEffectiveDbUserId(userId);
+  if (client && dbUserId) {
     try {
       const { data, error } = await client
         .from('weekly_reviews')
         .upsert(
           {
-            user_id: userId,
+            user_id: dbUserId,
             week_start: weekStart,
             reflection,
             questions: questions || {},
@@ -1018,14 +1210,21 @@ export async function saveWeeklyReview(
         )
         .select()
         .single();
-      if (!error && data) return data as WeeklyReview;
+      if (!error && data) {
+        const reviews = getStored<WeeklyReview[]>(REVIEWS_KEY, []);
+        const idx = reviews.findIndex((r) => (r.user_id === dbUserId || r.user_id === userId) && r.week_start === weekStart);
+        if (idx >= 0) reviews[idx] = data as WeeklyReview;
+        else reviews.push(data as WeeklyReview);
+        setStored(REVIEWS_KEY, reviews);
+        return data as WeeklyReview;
+      }
     } catch (err) {
       console.warn('Supabase save weekly review error:', err);
     }
   }
 
   const reviews = getStored<WeeklyReview[]>(REVIEWS_KEY, []);
-  const index = reviews.findIndex((r) => r.user_id === userId && r.week_start === weekStart);
+  const index = reviews.findIndex((r) => (r.user_id === userId || (dbUserId && r.user_id === dbUserId)) && r.week_start === weekStart);
 
   if (index >= 0) {
     const updated: WeeklyReview = {
@@ -1040,7 +1239,7 @@ export async function saveWeeklyReview(
   } else {
     const newReview: WeeklyReview = {
       id: crypto.randomUUID(),
-      user_id: userId,
+      user_id: dbUserId || userId,
       week_start: weekStart,
       reflection,
       questions,
@@ -1125,7 +1324,8 @@ export async function exportUserDataAsJSON(userId: string): Promise<string> {
   ]);
 
   const exportPayload = {
-    app: 'The Journal',
+    app: 'Flip Journal',
+    author: 'Emmanuel Akpan',
     version: '1.0',
     exported_at: new Date().toISOString(),
     profile,

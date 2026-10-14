@@ -36,6 +36,7 @@ import {
   SaveStatus,
   Mood,
   WeeklyReflectionQuestions,
+  Theme,
 } from './types/journal';
 import { BookCover } from './components/BookCover';
 import { BookNavbar } from './components/BookNavbar';
@@ -46,6 +47,7 @@ import { HabitsTracker } from './components/HabitsTracker';
 import { WeeklyReviewView } from './components/WeeklyReviewView';
 import { SettingsPrivacy } from './components/SettingsPrivacy';
 import { AuthModal } from './components/AuthModal';
+import { getTheme } from './utils/theme';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -53,13 +55,15 @@ export default function App() {
   const [activeSection, setActiveSection] = useState<BookSection>('journal');
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
+  const initialTheme = (typeof window !== 'undefined' && localStorage.getItem('flip_journal_theme') as Theme) || 'forest';
+
   // Core Data State
   const [profile, setProfile] = useState<Profile>({
     id: 'local_guest',
     display_name: 'Journal Keeper',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
     week_starts_on: 1,
-    theme: 'forest',
+    theme: initialTheme,
     text_size: 'medium',
     line_spacing: 'comfortable',
     reduced_motion: false,
@@ -133,7 +137,13 @@ export default function App() {
     setIsBookOpen(false);
   };
 
-  // Profile Updates
+  const handleCloseBook = async () => {
+    await signOutUser();
+    setCurrentUser(null);
+    setIsBookOpen(false);
+  };
+
+  // Profile Updates (Site theme dynamically updates with profile.theme)
   const handleUpdateProfile = async (updates: Partial<Profile>): Promise<Profile> => {
     const effectiveUserId = currentUser?.id || 'local_guest';
     const updated = await updateProfileApi(effectiveUserId, updates);
@@ -327,7 +337,7 @@ export default function App() {
     return await saveWeeklyReview(effectiveUserId, weekStart, reflection, questions);
   };
 
-  // Data Export (PRD Section 14.1)
+  // Data Export
   const handleExportData = async () => {
     const effectiveUserId = currentUser?.id || 'local_guest';
     const jsonStr = await exportUserDataAsJSON(effectiveUserId);
@@ -335,14 +345,14 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `The_Journal_Export_${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `Flip_Journal_Export_${new Date().toISOString().split('T')[0]}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
-  // Account Deletion (PRD Section 14.2)
+  // Account Deletion
   const handleDeleteAccount = async () => {
     const effectiveUserId = currentUser?.id || 'local_guest';
     await deleteUserAccountPermanently(effectiveUserId);
@@ -351,8 +361,13 @@ export default function App() {
     window.location.reload();
   };
 
+  const themeConfig = getTheme(profile.theme);
+
   return (
-    <div className="min-h-screen bg-[#111312] text-stone-100 flex flex-col font-sans selection:bg-[#c5a66a] selection:text-stone-900">
+    <div
+      className="min-h-screen text-stone-100 flex flex-col font-sans selection:bg-[#c5a66a] selection:text-stone-900 transition-colors duration-500"
+      style={themeConfig.bodyBgStyle}
+    >
       {!isBookOpen ? (
         /* Front Hardcover Landing Experience */
         <BookCover
@@ -368,7 +383,7 @@ export default function App() {
           <BookNavbar
             activeSection={activeSection}
             onSelectSection={setActiveSection}
-            onCloseBook={() => setIsBookOpen(false)}
+            onCloseBook={handleCloseBook}
             saveStatus={saveStatus}
             onRetrySave={() => {
               if (currentEntry) {
@@ -386,6 +401,7 @@ export default function App() {
             isAuthenticated={!!currentUser}
             userEmail={currentUser?.email}
             onOpenAuth={() => setAuthModalOpen(true)}
+            theme={profile.theme}
           />
 
           <main className="flex-1 flex items-center justify-center p-2 sm:p-4 lg:p-6">
@@ -424,6 +440,7 @@ export default function App() {
             {activeSection === 'goals' && (
               <GoalsMilestones
                 goals={goals}
+                profile={profile}
                 onCreateGoal={handleCreateGoal}
                 onUpdateGoal={handleUpdateGoal}
                 onDeleteGoal={handleDeleteGoal}
@@ -472,11 +489,12 @@ export default function App() {
         </div>
       )}
 
-      {/* Auth Modal */}
+      {/* Auth Modal themed with the Hardcover Binding Material */}
       <AuthModal
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
         onAuthSuccess={handleAuthSuccess}
+        theme={profile.theme}
       />
     </div>
   );

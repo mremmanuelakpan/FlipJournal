@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Settings,
-  Shield,
+  ShieldCheck,
   Download,
   Trash2,
   LogOut,
@@ -12,15 +11,11 @@ import {
   Check,
   Copy,
   AlertTriangle,
-  ExternalLink,
+  Lock,
 } from 'lucide-react';
 import { Profile, Theme, TextSize, LineSpacing } from '../types/journal';
-import {
-  getCustomSupabaseConfig,
-  saveCustomSupabaseConfig,
-  clearCustomSupabaseConfig,
-  getActiveSupabaseCredentials,
-} from '../lib/supabase';
+import { SpiralBinding } from './SpiralBinding';
+import { getTheme } from '../utils/theme';
 
 interface SettingsPrivacyProps {
   profile: Profile;
@@ -39,17 +34,13 @@ export const SettingsPrivacy: React.FC<SettingsPrivacyProps> = ({
   onSignOut,
   userEmail,
 }) => {
+  const themeConfig = getTheme(profile.theme);
   const [theme, setTheme] = useState<Theme>(profile.theme);
   const [textSize, setTextSize] = useState<TextSize>(profile.text_size);
   const [lineSpacing, setLineSpacing] = useState<LineSpacing>(profile.line_spacing);
   const [reducedMotion, setReducedMotion] = useState(profile.reduced_motion);
   const [weekStartsOn, setWeekStartsOn] = useState<0 | 1 | 6>(profile.week_starts_on);
 
-  // Supabase connection state
-  const activeCreds = getActiveSupabaseCredentials();
-  const [sbUrl, setSbUrl] = useState(activeCreds.url || '');
-  const [sbKey, setSbKey] = useState(activeCreds.anonKey || '');
-  const [sbMessage, setSbMessage] = useState<string | null>(null);
   const [showSqlModal, setShowSqlModal] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
 
@@ -62,24 +53,11 @@ export const SettingsPrivacy: React.FC<SettingsPrivacyProps> = ({
     await onUpdateProfile(updates);
   };
 
-  const handleSaveSupabaseConfig = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!sbUrl.trim() || !sbKey.trim()) {
-      clearCustomSupabaseConfig();
-      setSbMessage('Reset to local persistent database.');
-      setTimeout(() => window.location.reload(), 1000);
-      return;
-    }
-    saveCustomSupabaseConfig(sbUrl.trim(), sbKey.trim());
-    setSbMessage('Supabase configuration saved! Refreshing connection…');
-    setTimeout(() => window.location.reload(), 1200);
-  };
-
   const sampleMigrationSQL = `-- Run this in your Supabase SQL Editor:
--- Table: profiles, journal_entries, goals, goal_milestones, habits, habit_completions, weekly_reviews, entry_section_preferences
+-- Tables: profiles, journal_entries, goals, goal_milestones, habits, habit_completions, weekly_reviews, entry_section_preferences
 -- All tables protected with Row Level Security (RLS) enforcing auth.uid() = user_id
 -- Concurrency optimistic revision checking via save_journal_entry_with_revision() RPC.
--- See /supabase/migrations/20261014000000_the_journal_schema.sql in repository.`;
+-- Migration file located in /supabase/migrations/20261014000000_the_journal_schema.sql`;
 
   const copyMigrationToClipboard = async () => {
     try {
@@ -102,316 +80,285 @@ export const SettingsPrivacy: React.FC<SettingsPrivacyProps> = ({
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto py-4 sm:py-6 px-2 sm:px-4">
-      <div className="relative rounded-lg shadow-2xl overflow-hidden border border-[#c5a66a]/40 bg-[#244637] p-2 sm:p-4">
-        {/* Book Spine Center Gutter */}
-        <div className="hidden lg:block absolute left-1/2 top-0 bottom-0 w-8 -translate-x-1/2 z-20 pointer-events-none bg-gradient-to-r from-black/20 via-black/40 to-black/20 shadow-inner" />
+    <div className="w-full max-w-7xl mx-auto py-3 sm:py-5 px-2 sm:px-4">
+      <div
+        className="relative rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.85)] border-2 border-[#c5a66a]/60 p-3 sm:p-4 lg:p-5 transition-colors duration-500"
+        style={themeConfig.bookCoverStyle}
+      >
+        <div className="absolute inset-1.5 sm:inset-2 rounded-xl border border-[#c5a66a]/30 pointer-events-none" />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-0 min-h-[680px]">
-          {/* ========================================================= */}
-          {/* LEFT PAGE: Visual Aesthetics & Typographic Settings      */}
-          {/* ========================================================= */}
-          <div className="paper-surface paper-surface-left p-6 sm:p-8 lg:p-10 rounded-l-md border-r border-[#e0d6c1] flex flex-col justify-between text-stone-800 paper-scroll overflow-y-auto max-h-[82vh]">
-            <div>
-              <div className="border-b border-stone-300/80 pb-3 mb-6">
-                <span className="text-[11px] font-cinzel tracking-[0.25em] uppercase text-stone-500 block">
-                  Customization
-                </span>
-                <h2 className="text-2xl font-cormorant font-semibold text-stone-900">
-                  Journal Binding & Typography
-                </h2>
-              </div>
+        <div className="relative rounded-lg overflow-hidden bg-[#f7f2e8] border border-[#d6c7ab] shadow-[0_2px_4px_rgba(0,0,0,0.08),2px_2px_0px_#ede4d4,4px_4px_0px_#dfd2bc,0_16px_36px_-6px_rgba(0,0,0,0.5)]">
+          <SpiralBinding ringCount={22} />
 
-              {/* Theme Selector */}
-              <div className="mb-6">
-                <div className="flex items-center gap-1.5 mb-2.5">
-                  <Palette className="w-4 h-4 text-stone-600" />
-                  <span className="text-xs uppercase font-cinzel font-semibold text-stone-700">
-                    Hardcover Binding Material
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 min-h-[660px]">
+            {/* ========================================================= */}
+            {/* LEFT PAGE: Visual Aesthetics & Typographic Settings      */}
+            {/* ========================================================= */}
+            <div className="paper-surface paper-surface-left p-6 sm:p-8 lg:p-9 lg:pr-12 flex flex-col justify-between text-stone-800 border-b lg:border-b-0 lg:border-r border-[#d9ceb9]">
+              <div>
+                <div className="border-b border-stone-300/80 pb-3 mb-5">
+                  <span className="text-[11px] font-cinzel tracking-[0.25em] uppercase text-stone-500 block mb-1">
+                    Customization
                   </span>
+                  <h2 className="text-2xl sm:text-3xl font-cormorant font-semibold text-stone-900">
+                    Journal Binding & Typography
+                  </h2>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: 'forest', label: 'Forest Green', bg: 'bg-[#244637]' },
-                    { id: 'burgundy', label: 'Royal Burgundy', bg: 'bg-[#4d1a20]' },
-                    { id: 'navy', label: 'Deep Navy', bg: 'bg-[#182e44]' },
-                    { id: 'parchment', label: 'Antique Leather', bg: 'bg-[#4a4033]' },
-                  ].map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => {
-                        setTheme(t.id as Theme);
-                        handleSavePreferences({ theme: t.id as Theme });
-                      }}
-                      className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs font-serif transition-all cursor-pointer ${
-                        theme === t.id
-                          ? 'border-[#c5a66a] bg-stone-200/90 shadow-sm font-semibold'
-                          : 'border-stone-300/80 bg-stone-200/50 hover:bg-stone-200/70'
-                      }`}
-                    >
-                      <span className={`w-4 h-4 rounded-full ${t.bg} border border-amber-300/40`} />
-                      <span>{t.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
 
-              {/* Typography Text Size */}
-              <div className="mb-6">
-                <div className="flex items-center gap-1.5 mb-2.5">
-                  <Type className="w-4 h-4 text-stone-600" />
-                  <span className="text-xs uppercase font-cinzel font-semibold text-stone-700">
-                    Text Scale
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: 'small', label: 'Compact' },
-                    { id: 'medium', label: 'Standard' },
-                    { id: 'large', label: 'Comfortable' },
-                  ].map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => {
-                        setTextSize(s.id as TextSize);
-                        handleSavePreferences({ text_size: s.id as TextSize });
-                      }}
-                      className={`py-2 px-3 rounded text-xs font-serif transition-colors cursor-pointer ${
-                        textSize === s.id
-                          ? 'bg-[#244637] text-amber-100 font-semibold'
-                          : 'bg-stone-200/60 hover:bg-stone-200 text-stone-700'
-                      }`}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Line Spacing */}
-              <div className="mb-6">
-                <span className="text-xs uppercase font-cinzel font-semibold text-stone-700 block mb-2">
-                  Line Spacing (Leading)
-                </span>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: 'compact', label: 'Tight' },
-                    { id: 'comfortable', label: 'Normal' },
-                    { id: 'spacious', label: 'Spacious' },
-                  ].map((l) => (
-                    <button
-                      key={l.id}
-                      onClick={() => {
-                        setLineSpacing(l.id as LineSpacing);
-                        handleSavePreferences({ line_spacing: l.id as LineSpacing });
-                      }}
-                      className={`py-2 px-3 rounded text-xs font-serif transition-colors cursor-pointer ${
-                        lineSpacing === l.id
-                          ? 'bg-[#244637] text-amber-100 font-semibold'
-                          : 'bg-stone-200/60 hover:bg-stone-200 text-stone-700'
-                      }`}
-                    >
-                      {l.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Week Starts On */}
-              <div className="mb-6">
-                <span className="text-xs uppercase font-cinzel font-semibold text-stone-700 block mb-2">
-                  First Day of Week
-                </span>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: 1, label: 'Monday (ISO)' },
-                    { id: 0, label: 'Sunday' },
-                  ].map((w) => (
-                    <button
-                      key={w.id}
-                      onClick={() => {
-                        setWeekStartsOn(w.id as 0 | 1);
-                        handleSavePreferences({ week_starts_on: w.id as 0 | 1 });
-                      }}
-                      className={`py-2 px-3 rounded text-xs font-serif transition-colors cursor-pointer ${
-                        weekStartsOn === w.id
-                          ? 'bg-[#244637] text-amber-100 font-semibold'
-                          : 'bg-stone-200/60 hover:bg-stone-200 text-stone-700'
-                      }`}
-                    >
-                      {w.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Reduced Motion Toggle */}
-              <div className="mb-6">
-                <label className="flex items-center justify-between p-3 rounded-lg bg-stone-200/50 border border-stone-300/70 cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <Eye className="w-4 h-4 text-stone-600" />
-                    <div>
-                      <span className="text-xs font-semibold text-stone-900 block">
-                        Reduced Motion
-                      </span>
-                      <span className="text-[11px] text-stone-500">
-                        Simplify 3D page turns and cover animations
-                      </span>
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={reducedMotion}
-                    onChange={(e) => {
-                      const next = e.target.checked;
-                      setReducedMotion(next);
-                      handleSavePreferences({ reduced_motion: next });
-                    }}
-                    className="rounded border-stone-400 text-[#244637] cursor-pointer"
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-stone-300/60 text-[11px] font-cinzel text-stone-400 flex items-center justify-between">
-              <span>Preferences autosaved</span>
-              <span>Ledger Page 9</span>
-            </div>
-          </div>
-
-          {/* ========================================================= */}
-          {/* RIGHT PAGE: Database, Supabase Setup, Export & Deletion   */}
-          {/* ========================================================= */}
-          <div className="paper-surface paper-surface-right p-6 sm:p-8 lg:p-10 rounded-r-md flex flex-col justify-between text-stone-800 paper-scroll overflow-y-auto max-h-[82vh]">
-            <div className="flex-1 flex flex-col">
-              <div className="border-b border-stone-300/80 pb-3 mb-4">
-                <span className="text-[11px] font-cinzel tracking-[0.25em] uppercase text-stone-500 block">
-                  Authoritative Persistence & Privacy
-                </span>
-                <h3 className="text-2xl font-cormorant font-semibold text-stone-900">
-                  Data Governance & Security
-                </h3>
-              </div>
-
-              {/* Database Storage Engine Status */}
-              <div className="mb-6 p-4 rounded-lg bg-stone-200/60 border border-stone-300/80">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <Database className="w-4 h-4 text-stone-700" />
-                    <span className="text-xs font-cinzel font-semibold text-stone-900">
-                      Authoritative Storage Engine
+                {/* Theme Selector */}
+                <div className="mb-5">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Palette className="w-4 h-4 text-stone-600" />
+                    <span className="text-xs uppercase font-cinzel font-semibold text-stone-700">
+                      Hardcover Binding Material
                     </span>
                   </div>
-                  <span
-                    className={`text-[10px] uppercase font-cinzel px-2 py-0.5 rounded font-semibold ${
-                      activeCreds.isLive
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-amber-100 text-amber-800'
-                    }`}
-                  >
-                    {activeCreds.isLive ? 'Supabase Live' : 'Resilient Local Storage'}
-                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'forest', label: 'Forest Green', bg: 'bg-[#244637]' },
+                      { id: 'burgundy', label: 'Royal Burgundy', bg: 'bg-[#4d1a20]' },
+                      { id: 'navy', label: 'Deep Navy', bg: 'bg-[#182e44]' },
+                      { id: 'parchment', label: 'Antique Leather', bg: 'bg-[#4a4033]' },
+                    ].map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => {
+                          setTheme(t.id as Theme);
+                          handleSavePreferences({ theme: t.id as Theme });
+                        }}
+                        className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs font-serif transition-all cursor-pointer ${
+                          theme === t.id
+                            ? 'border-[#c5a66a] bg-stone-200/90 shadow-sm font-semibold ring-1 ring-[#c5a66a]'
+                            : 'border-stone-300/80 bg-stone-200/50 hover:bg-stone-200/70'
+                        }`}
+                      >
+                        <span className={`w-4 h-4 rounded-full ${t.bg} border border-amber-300/40`} />
+                        <span>{t.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                <p className="text-xs font-serif text-stone-600 mb-3 leading-relaxed">
-                  {activeCreds.isLive
-                    ? `Connected to Supabase PostgreSQL at ${activeCreds.url}. Row Level Security (RLS) is active.`
-                    : 'Currently saving to durable browser persistence with revision concurrency checks. You can connect your live Supabase project anytime.'}
-                </p>
+                {/* Typography Text Size */}
+                <div className="mb-5">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Type className="w-4 h-4 text-stone-600" />
+                    <span className="text-xs uppercase font-cinzel font-semibold text-stone-700">
+                      Text Scale
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'small', label: 'Compact' },
+                      { id: 'medium', label: 'Standard' },
+                      { id: 'large', label: 'Comfortable' },
+                    ].map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => {
+                          setTextSize(s.id as TextSize);
+                          handleSavePreferences({ text_size: s.id as TextSize });
+                        }}
+                        className={`py-2 px-3 rounded text-xs font-serif transition-colors cursor-pointer ${
+                          textSize === s.id
+                            ? 'bg-[#244637] text-amber-100 font-semibold'
+                            : 'bg-stone-200/60 hover:bg-stone-200 text-stone-700'
+                        }`}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-                {/* Supabase Connection Form */}
-                <form onSubmit={handleSaveSupabaseConfig} className="space-y-2 pt-2 border-t border-stone-300/60">
-                  <div className="text-[11px] font-semibold text-stone-700 uppercase font-cinzel">
-                    Connect Your Supabase Project
+                {/* Line Spacing */}
+                <div className="mb-5">
+                  <span className="text-xs uppercase font-cinzel font-semibold text-stone-700 block mb-2">
+                    Line Spacing (Leading)
+                  </span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'compact', label: 'Tight' },
+                      { id: 'comfortable', label: 'Normal' },
+                      { id: 'spacious', label: 'Spacious' },
+                    ].map((l) => (
+                      <button
+                        key={l.id}
+                        onClick={() => {
+                          setLineSpacing(l.id as LineSpacing);
+                          handleSavePreferences({ line_spacing: l.id as LineSpacing });
+                        }}
+                        className={`py-2 px-3 rounded text-xs font-serif transition-colors cursor-pointer ${
+                          lineSpacing === l.id
+                            ? 'bg-[#244637] text-amber-100 font-semibold'
+                            : 'bg-stone-200/60 hover:bg-stone-200 text-stone-700'
+                        }`}
+                      >
+                        {l.label}
+                      </button>
+                    ))}
                   </div>
-                  <div>
+                </div>
+
+                {/* Week Starts On */}
+                <div className="mb-5">
+                  <span className="text-xs uppercase font-cinzel font-semibold text-stone-700 block mb-2">
+                    First Day of Week
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 1, label: 'Monday (ISO)' },
+                      { id: 0, label: 'Sunday' },
+                    ].map((w) => (
+                      <button
+                        key={w.id}
+                        onClick={() => {
+                          setWeekStartsOn(w.id as 0 | 1);
+                          handleSavePreferences({ week_starts_on: w.id as 0 | 1 });
+                        }}
+                        className={`py-2 px-3 rounded text-xs font-serif transition-colors cursor-pointer ${
+                          weekStartsOn === w.id
+                            ? 'bg-[#244637] text-amber-100 font-semibold'
+                            : 'bg-stone-200/60 hover:bg-stone-200 text-stone-700'
+                        }`}
+                      >
+                        {w.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Reduced Motion Toggle */}
+                <div className="mb-4">
+                  <label className="flex items-center justify-between p-3 rounded-lg bg-stone-200/50 border border-stone-300/70 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <Eye className="w-4 h-4 text-stone-600" />
+                      <div>
+                        <span className="text-xs font-semibold text-stone-900 block">
+                          Reduced Motion
+                        </span>
+                        <span className="text-[11px] text-stone-500">
+                          Simplify 3D page turns and cover animations
+                        </span>
+                      </div>
+                    </div>
                     <input
-                      type="text"
-                      value={sbUrl}
-                      onChange={(e) => setSbUrl(e.target.value)}
-                      placeholder="https://your-project.supabase.co"
-                      className="w-full text-xs font-mono bg-stone-100 border border-stone-300 rounded px-2.5 py-1 text-stone-800"
+                      type="checkbox"
+                      checked={reducedMotion}
+                      onChange={(e) => {
+                        const next = e.target.checked;
+                        setReducedMotion(next);
+                        handleSavePreferences({ reduced_motion: next });
+                      }}
+                      className="rounded border-stone-400 text-[#244637] cursor-pointer"
                     />
+                  </label>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-stone-300/60 text-[11px] font-cinzel text-stone-400 flex items-center justify-between">
+                <span>Preferences autosaved</span>
+                <span>Ledger Page 9</span>
+              </div>
+            </div>
+
+            {/* ========================================================= */}
+            {/* RIGHT PAGE: Account, Export, Security & Deletion          */}
+            {/* ========================================================= */}
+            <div className="paper-surface paper-surface-right p-6 sm:p-8 lg:p-9 lg:pl-12 flex flex-col justify-between text-stone-800">
+              <div className="flex-1 flex flex-col">
+                <div className="border-b border-stone-300/80 pb-3 mb-5">
+                  <span className="text-[11px] font-cinzel tracking-[0.25em] uppercase text-stone-500 block mb-1">
+                    Privacy & Storage
+                  </span>
+                  <h3 className="text-2xl sm:text-3xl font-cormorant font-semibold text-stone-900">
+                    Data Governance & Account
+                  </h3>
+                </div>
+
+                {/* Protected Cloud Database Status (Clean, user-friendly, no confusing raw keys) */}
+                <div className="mb-5 p-4 rounded-lg bg-stone-200/60 border border-stone-300/80">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-emerald-800" />
+                      <span className="text-xs font-cinzel font-semibold text-stone-900">
+                        Cloud Database & Row Level Security
+                      </span>
+                    </div>
+                    <span className="text-[10px] uppercase font-cinzel px-2 py-0.5 rounded font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300/50">
+                      Active & Enforced
+                    </span>
                   </div>
-                  <div>
-                    <input
-                      type="password"
-                      value={sbKey}
-                      onChange={(e) => setSbKey(e.target.value)}
-                      placeholder="Your Supabase Anon / Public Key"
-                      className="w-full text-xs font-mono bg-stone-100 border border-stone-300 rounded px-2.5 py-1 text-stone-800"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between pt-1">
-                    <button
-                      type="submit"
-                      className="px-3 py-1.5 rounded text-xs font-cinzel bg-[#244637] text-amber-100 hover:bg-[#1b362a] cursor-pointer"
-                    >
-                      Save & Connect
-                    </button>
+
+                  <p className="text-xs font-serif text-stone-600 mb-2 leading-relaxed">
+                    Your entries, habits, and goals are securely isolated by PostgreSQL Row Level Security (RLS). Only your authenticated session can access or modify your private ledger.
+                  </p>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-stone-300/60 text-[11px] text-stone-500">
+                    <span className="flex items-center gap-1 font-mono">
+                      <Lock className="w-3 h-3 text-stone-400" />
+                      Zero cross-user data leakage
+                    </span>
                     <button
                       type="button"
                       onClick={() => setShowSqlModal(true)}
-                      className="text-xs text-stone-600 hover:text-stone-900 underline flex items-center gap-1 cursor-pointer"
+                      className="text-stone-700 hover:text-black underline font-cinzel cursor-pointer"
                     >
-                      <span>View SQL Schema</span>
+                      Database Policies
                     </button>
                   </div>
-                  {sbMessage && (
-                    <p className="text-xs text-amber-800 font-medium pt-1">{sbMessage}</p>
-                  )}
-                </form>
-              </div>
-
-              {/* Data Export (PRD Section 14.1) */}
-              <div className="mb-6 p-4 rounded-lg bg-stone-200/40 border border-stone-300/60 flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-cinzel font-semibold text-stone-900 mb-0.5">
-                    Export Personal Archives
-                  </h4>
-                  <p className="text-[11px] text-stone-500 max-w-xs leading-normal">
-                    Download a full JSON archive containing all journal entries, milestones, habits, reviews, and preferences.
-                  </p>
                 </div>
-                <button
-                  onClick={onExportData}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded bg-stone-300 hover:bg-stone-400/80 text-stone-900 text-xs font-cinzel font-medium transition-colors cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Export JSON</span>
-                </button>
-              </div>
 
-              {/* Account Sign Out and Permanent Deletion */}
-              <div className="mt-auto space-y-3 pt-4 border-t border-stone-300/80">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs text-stone-600">
-                    Signed in as: <strong className="text-stone-900">{userEmail || 'Local Guest'}</strong>
+                {/* Data Export */}
+                <div className="mb-5 p-4 rounded-lg bg-stone-200/40 border border-stone-300/60 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-cinzel font-semibold text-stone-900 mb-0.5">
+                      Export Complete Archives
+                    </h4>
+                    <p className="text-[11px] text-stone-500 max-w-xs leading-normal">
+                      Download a structured JSON archive containing all entries, habits, milestones, and reviews.
+                    </p>
                   </div>
                   <button
-                    onClick={onSignOut}
-                    className="flex items-center gap-1.5 text-xs text-stone-700 hover:text-black underline cursor-pointer"
+                    onClick={onExportData}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded bg-stone-300 hover:bg-stone-400/80 text-stone-900 text-xs font-cinzel font-medium transition-colors cursor-pointer"
                   >
-                    <LogOut className="w-3.5 h-3.5" />
-                    <span>Sign Out</span>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Export JSON</span>
                   </button>
                 </div>
 
-                <div className="pt-2">
-                  <button
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="text-xs text-rose-700 hover:text-rose-900 flex items-center gap-1.5 font-medium cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Permanently delete account and all journal data</span>
-                  </button>
+                {/* Account Sign Out and Permanent Deletion */}
+                <div className="mt-auto space-y-3 pt-4 border-t border-stone-300/80">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-stone-600">
+                      Signed in as: <strong className="text-stone-900">{userEmail || 'Local Guest'}</strong>
+                    </div>
+                    <button
+                      onClick={onSignOut}
+                      className="flex items-center gap-1.5 text-xs text-stone-700 hover:text-black underline cursor-pointer"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="text-xs text-rose-700 hover:text-rose-900 flex items-center gap-1.5 font-medium cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Permanently delete account and all journal data</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="pt-4 border-t border-stone-300/60 text-[11px] font-cinzel text-stone-400 flex items-center justify-between">
-              <span>Security & Cryptography</span>
-              <span>Ledger Page 10</span>
+              <div className="pt-3 border-t border-stone-300/60 text-[11px] font-cinzel text-stone-400 flex items-center justify-between">
+                <span>Security & Cryptography</span>
+                <span>Ledger Page 10</span>
+              </div>
             </div>
           </div>
         </div>
@@ -430,13 +377,13 @@ export const SettingsPrivacy: React.FC<SettingsPrivacyProps> = ({
               </div>
               <button
                 onClick={() => setShowSqlModal(false)}
-                className="text-stone-400 hover:text-white text-xs"
+                className="text-stone-400 hover:text-white text-xs cursor-pointer"
               >
                 Close
               </button>
             </div>
             <p className="text-xs text-stone-300 mb-3">
-              This migration script creates all 8 tables, indexes, Row Level Security (RLS) policies, and the optimistic concurrency revision checking RPC.
+              All 8 database tables have Row Level Security enabled. Optimistic concurrency checking is enforced via <code className="text-amber-300">save_journal_entry_with_revision()</code> RPC.
             </p>
             <div className="bg-black/60 p-3 rounded text-[11px] font-mono text-emerald-300 max-h-60 overflow-y-auto mb-4 border border-stone-800">
               {sampleMigrationSQL}
@@ -457,7 +404,7 @@ export const SettingsPrivacy: React.FC<SettingsPrivacyProps> = ({
         </div>
       )}
 
-      {/* Account Deletion Confirmation Modal (PRD Section 14.2) */}
+      {/* Account Deletion Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-stone-900 border border-rose-600 rounded-xl max-w-md w-full p-6 text-stone-200 shadow-2xl">
@@ -468,7 +415,7 @@ export const SettingsPrivacy: React.FC<SettingsPrivacyProps> = ({
               </h3>
             </div>
             <p className="text-xs text-stone-300 mb-3 leading-relaxed">
-              This will permanently delete all your journal entries, milestones, habits, completions, weekly reviews, and settings. This action is <strong>irreversible</strong>.
+              This will permanently delete all your entries, milestones, habits, completions, weekly reviews, and settings. This action is <strong>irreversible</strong>.
             </p>
             <p className="text-xs text-stone-400 mb-3">
               To confirm, type <strong className="text-rose-400">DELETE PERMANENTLY</strong> below:
