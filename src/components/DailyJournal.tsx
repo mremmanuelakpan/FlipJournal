@@ -449,13 +449,16 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
         {/* Interior Paper Block with Note Depth (stacked pages thickness) directly on the notes */}
         <div className="relative rounded-lg overflow-hidden bg-[#f7f2e8] border border-[#d6c7ab] shadow-[0_2px_4px_rgba(0,0,0,0.08),2px_2px_0px_#ede4d4,4px_4px_0px_#dfd2bc,0_16px_36px_-6px_rgba(0,0,0,0.5)]">
           {/* Metallic Spiral Binding between Pages */}
-          <SpiralBinding ringCount={22} />
+          <SpiralBinding ringCount={22} theme={profile.theme} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 min-h-[660px]">
             {/* ========================================================= */}
             {/* LEFT PAGE: Reflection, Mood, Priorities & Habit Check-ins */}
             {/* ========================================================= */}
-            <div className="paper-surface paper-surface-left p-6 sm:p-8 lg:p-9 lg:pr-12 flex flex-col justify-between text-stone-800 border-b lg:border-b-0 lg:border-r border-[#d9ceb9]">
+            <div
+              className="paper-surface paper-surface-left p-6 sm:p-8 lg:p-9 lg:pr-12 flex flex-col justify-between text-stone-800 border-b lg:border-b-0 lg:border-r border-[#d9ceb9]"
+              style={{ borderRightColor: themeConfig.navbarBorder }}
+            >
               <div>
                 {/* Date Header */}
                 <div className="border-b border-stone-300/80 pb-3 mb-5">
@@ -488,9 +491,10 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
                           }}
                           className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs transition-all cursor-pointer ${
                             isSelected
-                              ? 'bg-[#244637] text-amber-100 font-medium shadow-sm'
+                              ? 'font-medium shadow-sm'
                               : 'bg-stone-200/70 hover:bg-stone-300 text-stone-700'
                           }`}
+                          style={isSelected ? { backgroundColor: themeConfig.primaryBtnBg, color: themeConfig.activeHighlightText } : undefined}
                         >
                           <span>{m.symbol}</span>
                           <span>{m.label}</span>
@@ -522,7 +526,7 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
                           value={val}
                           onChange={(e) => handlePromptChange(idx, e.target.value)}
                           placeholder="Write a thought…"
-                          className="w-full text-xs font-serif text-stone-800 bg-transparent border-b border-stone-300 focus:border-stone-700 pb-1 focus:outline-none placeholder:text-stone-400 placeholder:italic transition-colors"
+                          className="w-full text-xs font-lora text-stone-900 bg-transparent border-b border-stone-300 focus:border-stone-700 pb-1 focus:outline-none placeholder:text-stone-400 placeholder:italic transition-colors"
                         />
                       </div>
                     );
@@ -548,7 +552,7 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
                             value={prios[idx] || ''}
                             onChange={(e) => handlePriorityChange(idx, e.target.value)}
                             placeholder={`Intention ${idx + 1}…`}
-                            className="flex-1 text-xs font-serif text-stone-800 bg-transparent border-b border-stone-300 focus:border-stone-700 pb-1 focus:outline-none placeholder:text-stone-400 placeholder:italic transition-colors"
+                            className="flex-1 text-xs font-lora text-stone-900 bg-transparent border-b border-stone-300 focus:border-stone-700 pb-1 focus:outline-none placeholder:text-stone-400 placeholder:italic transition-colors"
                           />
                         </div>
                       );
@@ -660,7 +664,7 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
                           value={hl[idx] || ''}
                           onChange={(e) => handleHighlightChange(idx, e.target.value)}
                           placeholder={`Gratitude #${idx + 1}`}
-                          className="text-xs font-serif bg-stone-200/50 rounded px-2.5 py-1 text-stone-800 focus:bg-stone-200 focus:outline-none placeholder:text-stone-400 placeholder:italic transition-colors"
+                          className="text-xs font-lora bg-stone-200/50 rounded px-2.5 py-1 text-stone-900 focus:bg-stone-200 focus:outline-none placeholder:text-stone-400 placeholder:italic transition-colors"
                         />
                       );
                     })}
@@ -696,7 +700,8 @@ export const DailyJournal: React.FC<DailyJournalProps> = ({
                   <button
                     type="button"
                     onClick={() => performSave(true)}
-                    className="px-3 py-1 bg-stone-800 hover:bg-stone-900 text-amber-100 rounded text-xs font-cinzel font-medium transition-colors cursor-pointer"
+                    className="px-3.5 py-1 text-amber-100 rounded text-xs font-cinzel font-medium transition-all hover:brightness-110 cursor-pointer shadow-sm"
+                    style={{ backgroundColor: themeConfig.primaryBtnBg }}
                   >
                     Save
                   </button>

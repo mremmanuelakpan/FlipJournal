@@ -152,13 +152,16 @@ export const WeeklyReviewView: React.FC<WeeklyReviewViewProps> = ({
         <div className="absolute inset-1.5 sm:inset-2 rounded-xl border border-[#c5a66a]/30 pointer-events-none" />
 
         <div className="relative rounded-lg overflow-hidden bg-[#f7f2e8] border border-[#d6c7ab] shadow-[0_2px_4px_rgba(0,0,0,0.08),2px_2px_0px_#ede4d4,4px_4px_0px_#dfd2bc,0_16px_36px_-6px_rgba(0,0,0,0.5)]">
-          <SpiralBinding ringCount={22} />
+          <SpiralBinding ringCount={22} theme={profile.theme} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 min-h-[660px]">
             {/* ========================================================= */}
             {/* LEFT PAGE: Factual Activity Ledger for the Week           */}
             {/* ========================================================= */}
-            <div className="paper-surface paper-surface-left p-6 sm:p-8 lg:p-9 lg:pr-12 border-b lg:border-b-0 lg:border-r border-[#d9ceb9] flex flex-col justify-between text-stone-800">
+            <div
+              className="paper-surface paper-surface-left p-6 sm:p-8 lg:p-9 lg:pr-12 border-b lg:border-b-0 lg:border-r border-[#d9ceb9] flex flex-col justify-between text-stone-800"
+              style={{ borderRightColor: themeConfig.navbarBorder }}
+            >
               <div>
                 <div className="border-b border-stone-300/80 pb-3 mb-4 flex items-center justify-between">
                   <div>
@@ -200,7 +203,8 @@ export const WeeklyReviewView: React.FC<WeeklyReviewViewProps> = ({
                 {weekOffset !== 0 && (
                   <button
                     onClick={() => setWeekOffset(0)}
-                    className="text-xs text-amber-900 underline font-cinzel"
+                    className="text-xs underline font-cinzel cursor-pointer"
+                    style={{ color: themeConfig.primaryBtnBg }}
                   >
                     Current
                   </button>
@@ -299,7 +303,8 @@ export const WeeklyReviewView: React.FC<WeeklyReviewViewProps> = ({
                   <button
                     onClick={handleSave}
                     disabled={isSaving}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#244637] hover:bg-[#1b362a] text-amber-100 font-cinzel text-xs font-medium cursor-pointer transition-colors"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded text-amber-100 font-cinzel text-xs font-medium cursor-pointer transition-all hover:brightness-110 shadow-sm disabled:opacity-50"
+                    style={{ backgroundColor: themeConfig.primaryBtnBg }}
                   >
                     <Save className="w-3.5 h-3.5" />
                     <span>{isSaving ? 'Saving…' : 'Save Review'}</span>
@@ -307,77 +312,79 @@ export const WeeklyReviewView: React.FC<WeeklyReviewViewProps> = ({
                 </div>
               </div>
 
-              {/* 4 Guided Reflection Prompts prescribed in PRD Section 7.9 */}
-              <div className="space-y-3.5 mb-5">
-                <div>
-                  <label className="block text-xs font-cormorant font-semibold text-stone-900 mb-0.5">
-                    1. What went well this week?
-                  </label>
-                  <input
-                    type="text"
-                    value={questions.went_well || ''}
-                    onChange={(e) => setQuestions({ ...questions, went_well: e.target.value })}
-                    placeholder="Small wins, clarity gained, moments of peace…"
-                    className="w-full text-xs font-serif bg-stone-200/50 border border-stone-300 rounded px-2.5 py-1.5 text-stone-900 focus:outline-none focus:border-[#244637]"
-                  />
+                {/* 4 Guided Reflection Prompts matching journal tab note inputs */}
+                <div className="space-y-4 mb-5">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-serif italic text-stone-700 leading-snug">
+                      1. What went well this week?
+                    </label>
+                    <input
+                      type="text"
+                      value={questions.went_well || ''}
+                      onChange={(e) => setQuestions({ ...questions, went_well: e.target.value })}
+                      placeholder="Small wins, clarity gained, moments of peace…"
+                      className="w-full text-xs font-lora text-stone-800 bg-transparent border-b border-stone-300 focus:border-stone-700 pb-1 focus:outline-none placeholder:text-stone-400 placeholder:italic transition-colors"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-xs font-serif italic text-stone-700 leading-snug">
+                      2. What did I learn?
+                    </label>
+                    <input
+                      type="text"
+                      value={questions.learned || ''}
+                      onChange={(e) => setQuestions({ ...questions, learned: e.target.value })}
+                      placeholder="Insights from experience, books, or mistakes…"
+                      className="w-full text-xs font-lora text-stone-800 bg-transparent border-b border-stone-300 focus:border-stone-700 pb-1 focus:outline-none placeholder:text-stone-400 placeholder:italic transition-colors"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-xs font-serif italic text-stone-700 leading-snug">
+                      3. What would I like to approach differently?
+                    </label>
+                    <input
+                      type="text"
+                      value={questions.approach_differently || ''}
+                      onChange={(e) =>
+                        setQuestions({ ...questions, approach_differently: e.target.value })
+                      }
+                      placeholder="A habit tweak, boundary, or reaction to improve…"
+                      className="w-full text-xs font-lora text-stone-800 bg-transparent border-b border-stone-300 focus:border-stone-700 pb-1 focus:outline-none placeholder:text-stone-400 placeholder:italic transition-colors"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-xs font-serif italic text-stone-700 leading-snug">
+                      4. What matters most next week?
+                    </label>
+                    <input
+                      type="text"
+                      value={questions.matters_most_next || ''}
+                      onChange={(e) =>
+                        setQuestions({ ...questions, matters_most_next: e.target.value })
+                      }
+                      placeholder="The core priority to guard your energy for…"
+                      className="w-full text-xs font-lora text-stone-800 bg-transparent border-b border-stone-300 focus:border-stone-700 pb-1 focus:outline-none placeholder:text-stone-400 placeholder:italic transition-colors"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-cormorant font-semibold text-stone-900 mb-0.5">
-                    2. What did I learn?
+                {/* Freeform weekly synthesis textarea - styled as note lined paper just like journal tab */}
+                <div className="flex-1 flex flex-col min-h-[160px]">
+                  <label className="block text-xs uppercase font-cinzel text-stone-600 mb-1 tracking-wider">
+                    Weekly Narrative & Synthesis
                   </label>
-                  <input
-                    type="text"
-                    value={questions.learned || ''}
-                    onChange={(e) => setQuestions({ ...questions, learned: e.target.value })}
-                    placeholder="Insights from experience, books, or mistakes…"
-                    className="w-full text-xs font-serif bg-stone-200/50 border border-stone-300 rounded px-2.5 py-1.5 text-stone-900 focus:outline-none focus:border-[#244637]"
-                  />
+                  <div className="flex-1 relative min-h-[140px]">
+                    <textarea
+                      value={reflection}
+                      onChange={(e) => setReflection(e.target.value)}
+                      placeholder="Synthesize the week's theme, emotional texture, and gentle intentions for the upcoming cycle…"
+                      className={`w-full h-full min-h-[140px] bg-transparent resize-none focus:outline-none font-lora text-stone-800 placeholder:text-stone-400/80 placeholder:italic lined-paper leading-7 text-pref-${profile.text_size} spacing-pref-${profile.line_spacing}`}
+                    />
+                  </div>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-cormorant font-semibold text-stone-900 mb-0.5">
-                    3. What would I like to approach differently?
-                  </label>
-                  <input
-                    type="text"
-                    value={questions.approach_differently || ''}
-                    onChange={(e) =>
-                      setQuestions({ ...questions, approach_differently: e.target.value })
-                    }
-                    placeholder="A habit tweak, boundary, or reaction to improve…"
-                    className="w-full text-xs font-serif bg-stone-200/50 border border-stone-300 rounded px-2.5 py-1.5 text-stone-900 focus:outline-none focus:border-[#244637]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-cormorant font-semibold text-stone-900 mb-0.5">
-                    4. What matters most next week?
-                  </label>
-                  <input
-                    type="text"
-                    value={questions.matters_most_next || ''}
-                    onChange={(e) =>
-                      setQuestions({ ...questions, matters_most_next: e.target.value })
-                    }
-                    placeholder="The core priority to guard your energy for…"
-                    className="w-full text-xs font-serif bg-stone-200/50 border border-stone-300 rounded px-2.5 py-1.5 text-stone-900 focus:outline-none focus:border-[#244637]"
-                  />
-                </div>
-              </div>
-
-              {/* Freeform weekly synthesis textarea */}
-              <div className="flex-1 flex flex-col">
-                <label className="block text-xs uppercase font-cinzel text-stone-600 mb-1">
-                  Weekly Narrative & Synthesis
-                </label>
-                <textarea
-                  value={reflection}
-                  onChange={(e) => setReflection(e.target.value)}
-                  placeholder="Synthesize the week's theme, emotional texture, and gentle intentions for the upcoming cycle…"
-                  className="flex-1 min-h-[140px] w-full bg-stone-200/50 border border-stone-300 rounded p-3 text-xs font-serif text-stone-900 resize-none focus:outline-none focus:border-[#244637] leading-relaxed"
-                />
-              </div>
             </div>
 
             <div className="pt-4 border-t border-stone-300/60 text-[11px] font-cinzel text-stone-400 flex items-center justify-between">

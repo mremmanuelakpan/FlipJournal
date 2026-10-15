@@ -88,13 +88,16 @@ export const SettingsPrivacy: React.FC<SettingsPrivacyProps> = ({
         <div className="absolute inset-1.5 sm:inset-2 rounded-xl border border-[#c5a66a]/30 pointer-events-none" />
 
         <div className="relative rounded-lg overflow-hidden bg-[#f7f2e8] border border-[#d6c7ab] shadow-[0_2px_4px_rgba(0,0,0,0.08),2px_2px_0px_#ede4d4,4px_4px_0px_#dfd2bc,0_16px_36px_-6px_rgba(0,0,0,0.5)]">
-          <SpiralBinding ringCount={22} />
+          <SpiralBinding ringCount={22} theme={theme} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 min-h-[660px]">
             {/* ========================================================= */}
             {/* LEFT PAGE: Visual Aesthetics & Typographic Settings      */}
             {/* ========================================================= */}
-            <div className="paper-surface paper-surface-left p-6 sm:p-8 lg:p-9 lg:pr-12 flex flex-col justify-between text-stone-800 border-b lg:border-b-0 lg:border-r border-[#d9ceb9]">
+            <div
+              className="paper-surface paper-surface-left p-6 sm:p-8 lg:p-9 lg:pr-12 flex flex-col justify-between text-stone-800 border-b lg:border-b-0 lg:border-r border-[#d9ceb9]"
+              style={{ borderRightColor: themeConfig.navbarBorder }}
+            >
               <div>
                 <div className="border-b border-stone-300/80 pb-3 mb-5">
                   <span className="text-[11px] font-cinzel tracking-[0.25em] uppercase text-stone-500 block mb-1">
@@ -159,11 +162,12 @@ export const SettingsPrivacy: React.FC<SettingsPrivacyProps> = ({
                           setTextSize(s.id as TextSize);
                           handleSavePreferences({ text_size: s.id as TextSize });
                         }}
-                        className={`py-2 px-3 rounded text-xs font-serif transition-colors cursor-pointer ${
+                        className={`py-2 px-3 rounded text-xs font-serif transition-all cursor-pointer ${
                           textSize === s.id
-                            ? 'bg-[#244637] text-amber-100 font-semibold'
+                            ? 'font-semibold shadow-sm'
                             : 'bg-stone-200/60 hover:bg-stone-200 text-stone-700'
                         }`}
+                        style={textSize === s.id ? { backgroundColor: themeConfig.primaryBtnBg, color: themeConfig.activeHighlightText } : undefined}
                       >
                         {s.label}
                       </button>
@@ -188,11 +192,12 @@ export const SettingsPrivacy: React.FC<SettingsPrivacyProps> = ({
                           setLineSpacing(l.id as LineSpacing);
                           handleSavePreferences({ line_spacing: l.id as LineSpacing });
                         }}
-                        className={`py-2 px-3 rounded text-xs font-serif transition-colors cursor-pointer ${
+                        className={`py-2 px-3 rounded text-xs font-serif transition-all cursor-pointer ${
                           lineSpacing === l.id
-                            ? 'bg-[#244637] text-amber-100 font-semibold'
+                            ? 'font-semibold shadow-sm'
                             : 'bg-stone-200/60 hover:bg-stone-200 text-stone-700'
                         }`}
+                        style={lineSpacing === l.id ? { backgroundColor: themeConfig.primaryBtnBg, color: themeConfig.activeHighlightText } : undefined}
                       >
                         {l.label}
                       </button>
@@ -216,11 +221,12 @@ export const SettingsPrivacy: React.FC<SettingsPrivacyProps> = ({
                           setWeekStartsOn(w.id as 0 | 1);
                           handleSavePreferences({ week_starts_on: w.id as 0 | 1 });
                         }}
-                        className={`py-2 px-3 rounded text-xs font-serif transition-colors cursor-pointer ${
+                        className={`py-2 px-3 rounded text-xs font-serif transition-all cursor-pointer ${
                           weekStartsOn === w.id
-                            ? 'bg-[#244637] text-amber-100 font-semibold'
+                            ? 'font-semibold shadow-sm'
                             : 'bg-stone-200/60 hover:bg-stone-200 text-stone-700'
                         }`}
+                        style={weekStartsOn === w.id ? { backgroundColor: themeConfig.primaryBtnBg, color: themeConfig.activeHighlightText } : undefined}
                       >
                         {w.label}
                       </button>
@@ -250,7 +256,8 @@ export const SettingsPrivacy: React.FC<SettingsPrivacyProps> = ({
                         setReducedMotion(next);
                         handleSavePreferences({ reduced_motion: next });
                       }}
-                      className="rounded border-stone-400 text-[#244637] cursor-pointer"
+                      className="rounded border-stone-400 cursor-pointer"
+                      style={{ accentColor: themeConfig.primaryBtnBg }}
                     />
                   </label>
                 </div>
@@ -321,7 +328,8 @@ export const SettingsPrivacy: React.FC<SettingsPrivacyProps> = ({
                   </div>
                   <button
                     onClick={onExportData}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded bg-stone-300 hover:bg-stone-400/80 text-stone-900 text-xs font-cinzel font-medium transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded text-amber-100 text-xs font-cinzel font-medium transition-all hover:brightness-110 cursor-pointer shadow-sm"
+                    style={{ backgroundColor: themeConfig.primaryBtnBg }}
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>Export JSON</span>
@@ -394,7 +402,8 @@ export const SettingsPrivacy: React.FC<SettingsPrivacyProps> = ({
               </span>
               <button
                 onClick={copyMigrationToClipboard}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#244637] hover:bg-[#1b362a] text-amber-100 text-xs font-cinzel cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded text-amber-100 text-xs font-cinzel transition-all hover:brightness-110 cursor-pointer shadow-sm"
+                style={{ backgroundColor: themeConfig.primaryBtnBg }}
               >
                 {copiedSql ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copiedSql ? 'Copied!' : 'Copy SQL Script'}</span>

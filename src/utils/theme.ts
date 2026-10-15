@@ -13,6 +13,14 @@ export interface ThemeConfig {
   accentText: string;
   accentBg: string;
   badgeBg: string;
+  primaryBtnBg: string;
+  primaryBtnHover: string;
+  activeHighlightBg: string;
+  activeHighlightText: string;
+  progressBarGradient: string;
+  progressBarBg: string;
+  ringBorderColor: string;
+  pageDividerColor: string;
 }
 
 export const THEME_CONFIGS: Record<Theme, ThemeConfig> = {
@@ -36,6 +44,14 @@ export const THEME_CONFIGS: Record<Theme, ThemeConfig> = {
     accentText: '#dfc187',
     accentBg: '#c5a66a',
     badgeBg: 'bg-[#244637]',
+    primaryBtnBg: '#244637',
+    primaryBtnHover: '#1b362a',
+    activeHighlightBg: '#244637',
+    activeHighlightText: '#fef3c7',
+    progressBarBg: '#244637',
+    progressBarGradient: 'linear-gradient(to right, #183327 0%, #244637 50%, #36634e 100%)',
+    ringBorderColor: '#244637',
+    pageDividerColor: '#183327',
   },
   burgundy: {
     id: 'burgundy',
@@ -57,6 +73,14 @@ export const THEME_CONFIGS: Record<Theme, ThemeConfig> = {
     accentText: '#f0c797',
     accentBg: '#d49b6a',
     badgeBg: 'bg-[#4d1a20]',
+    primaryBtnBg: '#5c1a23',
+    primaryBtnHover: '#441219',
+    activeHighlightBg: '#5c1a23',
+    activeHighlightText: '#fef3c7',
+    progressBarBg: '#5c1a23',
+    progressBarGradient: 'linear-gradient(to right, #380d14 0%, #5c1a23 50%, #7d2633 100%)',
+    ringBorderColor: '#5c1a23',
+    pageDividerColor: '#380d14',
   },
   navy: {
     id: 'navy',
@@ -78,6 +102,14 @@ export const THEME_CONFIGS: Record<Theme, ThemeConfig> = {
     accentText: '#dfc187',
     accentBg: '#c5a66a',
     badgeBg: 'bg-[#182e44]',
+    primaryBtnBg: '#19324a',
+    primaryBtnHover: '#112233',
+    activeHighlightBg: '#19324a',
+    activeHighlightText: '#fef3c7',
+    progressBarBg: '#19324a',
+    progressBarGradient: 'linear-gradient(to right, #0e1c2a 0%, #19324a 50%, #284c6e 100%)',
+    ringBorderColor: '#19324a',
+    pageDividerColor: '#0e1c2a',
   },
   parchment: {
     id: 'parchment',
@@ -99,6 +131,14 @@ export const THEME_CONFIGS: Record<Theme, ThemeConfig> = {
     accentText: '#dfc187',
     accentBg: '#c5a66a',
     badgeBg: 'bg-[#4a4033]',
+    primaryBtnBg: '#4f4132',
+    primaryBtnHover: '#392f23',
+    activeHighlightBg: '#4f4132',
+    activeHighlightText: '#fef3c7',
+    progressBarBg: '#4f4132',
+    progressBarGradient: 'linear-gradient(to right, #33281d 0%, #4f4132 50%, #6b5a47 100%)',
+    ringBorderColor: '#4f4132',
+    pageDividerColor: '#33281d',
   },
 };
 

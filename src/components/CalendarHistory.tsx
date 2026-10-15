@@ -118,13 +118,16 @@ export const CalendarHistory: React.FC<CalendarHistoryProps> = ({
         <div className="absolute inset-1.5 sm:inset-2 rounded-xl border border-[#c5a66a]/30 pointer-events-none" />
 
         <div className="relative rounded-lg overflow-hidden bg-[#f7f2e8] border border-[#d6c7ab] shadow-[0_2px_4px_rgba(0,0,0,0.08),2px_2px_0px_#ede4d4,4px_4px_0px_#dfd2bc,0_16px_36px_-6px_rgba(0,0,0,0.5)]">
-          <SpiralBinding ringCount={22} />
+          <SpiralBinding ringCount={22} theme={profile.theme} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 min-h-[660px]">
             {/* ========================================================= */}
             {/* LEFT PAGE: Interactive Calendar & Date Filters           */}
             {/* ========================================================= */}
-            <div className="paper-surface paper-surface-left p-6 sm:p-8 lg:p-9 lg:pr-12 border-b lg:border-b-0 lg:border-r border-[#d9ceb9] flex flex-col justify-between text-stone-800">
+            <div
+              className="paper-surface paper-surface-left p-6 sm:p-8 lg:p-9 lg:pr-12 border-b lg:border-b-0 lg:border-r border-[#d9ceb9] flex flex-col justify-between text-stone-800"
+              style={{ borderRightColor: themeConfig.navbarBorder }}
+            >
               <div>
                 <div className="border-b border-stone-300/80 pb-3 mb-5 flex items-center justify-between">
                   <div>
@@ -198,11 +201,12 @@ export const CalendarHistory: React.FC<CalendarHistoryProps> = ({
                       }}
                       className={`h-11 rounded-md flex flex-col items-center justify-between py-1 transition-all relative cursor-pointer ${
                         isSelected
-                          ? 'bg-[#244637] text-amber-100 shadow-md font-bold'
+                          ? 'shadow-md font-bold'
                           : hasEntries
                           ? 'bg-amber-100/70 hover:bg-amber-200/80 text-stone-900 border border-amber-300/60'
                           : 'hover:bg-stone-200/60 text-stone-700'
                       }`}
+                      style={isSelected ? { backgroundColor: themeConfig.primaryBtnBg, color: themeConfig.activeHighlightText } : undefined}
                     >
                       <span className={`text-xs ${isToday ? 'underline decoration-amber-600 decoration-2 font-bold' : ''}`}>
                         {dayNum}
@@ -212,9 +216,8 @@ export const CalendarHistory: React.FC<CalendarHistoryProps> = ({
                           {dayEntries.slice(0, 3).map((_, idx) => (
                             <span
                               key={idx}
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                isSelected ? 'bg-amber-300' : 'bg-[#244637]'
-                              }`}
+                              className="w-1.5 h-1.5 rounded-full"
+                              style={{ backgroundColor: isSelected ? '#fde68a' : themeConfig.primaryBtnBg }}
                             />
                           ))}
                         </div>
@@ -241,7 +244,8 @@ export const CalendarHistory: React.FC<CalendarHistoryProps> = ({
                   <div className="flex gap-2">
                     <button
                       onClick={() => onNewEntryForDate(activeDate)}
-                      className="text-xs px-3 py-1.5 rounded bg-[#244637] text-amber-100 hover:bg-[#1b362a] transition-colors cursor-pointer"
+                      className="text-xs px-3.5 py-1.5 rounded text-amber-100 transition-all hover:brightness-110 cursor-pointer shadow-sm"
+                      style={{ backgroundColor: themeConfig.primaryBtnBg }}
                     >
                       + Write New Entry for {activeDate}
                     </button>
@@ -261,11 +265,12 @@ export const CalendarHistory: React.FC<CalendarHistoryProps> = ({
                     <button
                       key={m.id}
                       onClick={() => setSelectedMood(m.id)}
-                      className={`text-[11px] px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                      className={`text-[11px] px-2.5 py-1 rounded transition-all cursor-pointer ${
                         selectedMood === m.id
-                          ? 'bg-[#244637] text-amber-100 font-semibold'
+                          ? 'font-semibold shadow-sm'
                           : 'bg-stone-200/80 text-stone-700 hover:bg-stone-300'
                       }`}
+                      style={selectedMood === m.id ? { backgroundColor: themeConfig.primaryBtnBg, color: themeConfig.activeHighlightText } : undefined}
                     >
                       {m.symbol && <span className="mr-1">{m.symbol}</span>}
                       {m.label}
@@ -344,7 +349,8 @@ export const CalendarHistory: React.FC<CalendarHistoryProps> = ({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search entries by title, thoughts, keywords…"
-                  className="w-full bg-stone-200/60 border border-stone-300/80 rounded-md pl-9 pr-8 py-2 text-xs font-serif text-stone-900 placeholder:text-stone-400 placeholder:italic focus:outline-none focus:border-[#244637] focus:bg-stone-200/90 transition-all"
+                  className="w-full bg-stone-200/60 border border-stone-300/80 rounded-md pl-9 pr-8 py-2 text-xs font-serif text-stone-900 placeholder:text-stone-400 placeholder:italic focus:outline-none focus:bg-stone-200/90 transition-all"
+                  style={{ borderColor: themeConfig.navbarBorder }}
                 />
                 {searchQuery && (
                   <button
@@ -397,7 +403,7 @@ export const CalendarHistory: React.FC<CalendarHistoryProps> = ({
                           </div>
                         </div>
 
-                        <h4 className="font-cormorant text-base font-semibold text-stone-900 group-hover:text-[#244637] transition-colors mb-1">
+                        <h4 className="font-cormorant text-base font-semibold text-stone-900 group-hover:opacity-80 transition-colors mb-1">
                           {entry.title || 'Untitled Reflection'}
                         </h4>
 

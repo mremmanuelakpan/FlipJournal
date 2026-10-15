@@ -172,13 +172,16 @@ export const HabitsTracker: React.FC<HabitsTrackerProps> = ({
         <div className="absolute inset-1.5 sm:inset-2 rounded-xl border border-[#c5a66a]/30 pointer-events-none" />
 
         <div className="relative rounded-lg overflow-hidden bg-[#f7f2e8] border border-[#d6c7ab] shadow-[0_2px_4px_rgba(0,0,0,0.08),2px_2px_0px_#ede4d4,4px_4px_0px_#dfd2bc,0_16px_36px_-6px_rgba(0,0,0,0.5)]">
-          <SpiralBinding ringCount={22} />
+          <SpiralBinding ringCount={22} theme={profile.theme} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 min-h-[660px]">
             {/* ========================================================= */}
             {/* LEFT PAGE: 7-Day Completion Matrix Grid                   */}
             {/* ========================================================= */}
-            <div className="paper-surface paper-surface-left p-6 sm:p-8 lg:p-9 lg:pr-12 border-b lg:border-b-0 lg:border-r border-[#d9ceb9] flex flex-col justify-between text-stone-800">
+            <div
+              className="paper-surface paper-surface-left p-6 sm:p-8 lg:p-9 lg:pr-12 border-b lg:border-b-0 lg:border-r border-[#d9ceb9] flex flex-col justify-between text-stone-800"
+              style={{ borderRightColor: themeConfig.navbarBorder }}
+            >
               <div>
                 <div className="border-b border-stone-300/80 pb-3 mb-4 flex items-center justify-between">
                   <div>
@@ -191,12 +194,13 @@ export const HabitsTracker: React.FC<HabitsTrackerProps> = ({
                   </div>
                   <button
                     onClick={() => setIsCreating(true)}
-                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-cinzel bg-[#244637] hover:bg-[#1b362a] text-amber-100 rounded transition-colors cursor-pointer"
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-cinzel text-amber-100 rounded transition-all cursor-pointer hover:brightness-110 shadow-sm"
+                    style={{ backgroundColor: themeConfig.primaryBtnBg }}
                   >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>New Habit</span>
-                </button>
-              </div>
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>New Habit</span>
+                  </button>
+                </div>
 
               {/* Week Navigation Header */}
               <div className="flex items-center justify-between bg-stone-200/50 p-2 rounded mb-4">
@@ -241,7 +245,8 @@ export const HabitsTracker: React.FC<HabitsTrackerProps> = ({
                   </p>
                   <button
                     onClick={() => setIsCreating(true)}
-                    className="text-xs px-3 py-1.5 rounded bg-[#244637] text-amber-100 font-cinzel"
+                    className="text-xs px-3.5 py-1.5 rounded text-amber-100 font-cinzel hover:brightness-110 cursor-pointer shadow-sm transition-all"
+                    style={{ backgroundColor: themeConfig.primaryBtnBg }}
                   >
                     Form a Habit
                   </button>
@@ -256,8 +261,9 @@ export const HabitsTracker: React.FC<HabitsTrackerProps> = ({
                           <th
                             key={d.dateStr}
                             className={`py-2 px-1 text-center font-cinzel text-[11px] ${
-                              d.isToday ? 'text-[#244637] font-bold underline' : 'text-stone-500'
+                              d.isToday ? 'font-bold underline' : 'text-stone-500'
                             }`}
+                            style={d.isToday ? { color: themeConfig.primaryBtnBg } : undefined}
                           >
                             <span>{d.dayName}</span>
                             <span className="block text-[10px] font-mono">{d.dayNum}</span>
@@ -295,7 +301,7 @@ export const HabitsTracker: React.FC<HabitsTrackerProps> = ({
                                     title={`Toggle ${habit.name} for ${d.dateStr}`}
                                   >
                                     {isCompleted ? (
-                                      <CheckCircle2 className="w-5 h-5 text-[#244637]" />
+                                      <CheckCircle2 className="w-5 h-5" style={{ color: themeConfig.primaryBtnBg }} />
                                     ) : (
                                       <Circle className="w-5 h-5 text-stone-300 hover:text-stone-500" />
                                     )}
@@ -347,7 +353,7 @@ export const HabitsTracker: React.FC<HabitsTrackerProps> = ({
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="e.g. Morning 20m Walk, Read Philosophy, Meditate"
-                      className="w-full text-xs font-serif bg-stone-200/60 border border-stone-300 rounded px-3 py-2 text-stone-900 focus:outline-none focus:border-[#244637]"
+                      className="w-full text-xs font-lora bg-stone-200/60 border border-stone-300 rounded px-3 py-2 text-stone-900 focus:outline-none"
                     />
                   </div>
 
@@ -360,7 +366,7 @@ export const HabitsTracker: React.FC<HabitsTrackerProps> = ({
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       placeholder="e.g. Immediately upon waking with black tea"
-                      className="w-full text-xs font-serif bg-stone-200/60 border border-stone-300 rounded px-3 py-2 text-stone-900 focus:outline-none focus:border-[#244637]"
+                      className="w-full text-xs font-lora bg-stone-200/60 border border-stone-300 rounded px-3 py-2 text-stone-900 focus:outline-none"
                     />
                   </div>
 
@@ -400,9 +406,10 @@ export const HabitsTracker: React.FC<HabitsTrackerProps> = ({
                           onClick={() => setScheduleType(t.id as HabitScheduleType)}
                           className={`text-xs py-1.5 px-2 rounded font-cinzel transition-all cursor-pointer ${
                             scheduleType === t.id
-                              ? 'bg-[#244637] text-amber-100 font-semibold'
+                              ? 'font-semibold shadow-sm'
                               : 'bg-stone-200 text-stone-700 hover:bg-stone-300'
                           }`}
+                          style={scheduleType === t.id ? { backgroundColor: themeConfig.primaryBtnBg, color: themeConfig.activeHighlightText } : undefined}
                         >
                           {t.label}
                         </button>
@@ -429,11 +436,12 @@ export const HabitsTracker: React.FC<HabitsTrackerProps> = ({
                             key={item.d}
                             type="button"
                             onClick={() => toggleWeekday(item.d)}
-                            className={`w-8 h-8 rounded text-xs font-cinzel font-semibold cursor-pointer ${
+                            className={`w-8 h-8 rounded text-xs font-cinzel font-semibold cursor-pointer transition-all ${
                               selectedWeekdays.includes(item.d)
-                                ? 'bg-[#244637] text-amber-100'
+                                ? 'shadow-sm'
                                 : 'bg-stone-200 text-stone-600'
                             }`}
+                            style={selectedWeekdays.includes(item.d) ? { backgroundColor: themeConfig.primaryBtnBg, color: themeConfig.activeHighlightText } : undefined}
                           >
                             {item.label}
                           </button>
@@ -461,7 +469,8 @@ export const HabitsTracker: React.FC<HabitsTrackerProps> = ({
                   <div className="pt-4">
                     <button
                       type="submit"
-                      className="w-full py-2.5 rounded bg-[#244637] hover:bg-[#1b362a] text-amber-100 font-cinzel font-medium text-xs tracking-wider transition-colors cursor-pointer"
+                      className="w-full py-2.5 rounded font-cinzel font-medium text-xs tracking-wider transition-all cursor-pointer hover:brightness-110 shadow-sm"
+                      style={{ backgroundColor: themeConfig.primaryBtnBg, color: themeConfig.activeHighlightText }}
                     >
                       Commit Habit
                     </button>

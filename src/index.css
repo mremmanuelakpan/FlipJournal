@@ -176,6 +176,33 @@
   transform-style: preserve-3d;
 }
 
+@keyframes bookPageFlip {
+  0% {
+    opacity: 0.35;
+    transform: perspective(1800px) rotateY(-24deg);
+    transform-origin: left center;
+    box-shadow: -16px 0 24px rgba(0, 0, 0, 0.28);
+  }
+  60% {
+    opacity: 0.95;
+    transform: perspective(1800px) rotateY(3deg);
+    transform-origin: left center;
+    box-shadow: -4px 0 10px rgba(0, 0, 0, 0.12);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1800px) rotateY(0deg);
+    transform-origin: left center;
+    box-shadow: none;
+  }
+}
+
+.book-page-flip {
+  animation: bookPageFlip 0.42s cubic-bezier(0.2, 0.9, 0.4, 1) forwards;
+  transform-style: preserve-3d;
+  transform-origin: left center;
+}
+
 /* Custom Scrollbar for ivory paper */
 .paper-scroll::-webkit-scrollbar {
   width: 5px;
